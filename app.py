@@ -4,16 +4,16 @@ import json
 import os
 from pathlib import Path
 import re
-import secrets
-import time
 import threading
 import logging
 import uuid
 import hashlib
 
 from flask import Flask, abort, g, redirect, render_template_string, request, session
-from federation import FederationError, assume_role, login_url, validate_destination
+from federation import assume_role, login_url
 from configuration import validate_settings
+from security import TokenStore
+from version import VERSION
 
 FORM = '''<!doctype html><html lang="en"><meta charset="utf-8"><title>Tencent Cloud role connection</title>
 <body><h1>Tencent Cloud role connection</h1><form method="post" action="/connect" autocomplete="off">
@@ -41,8 +41,8 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role):
         raise ValueError('Use independent proxy and session keys')
     profiles = validate_settings(settings)['profiles']
     app = Flask(__name__)
-    nonces = {}
-    nonce_lock = threading.Lock()
+    tokens = TokenStore()
+    issuance_slots = threading.BoundedSemaphore(2)
     logger = logging.getLogger('psm_tencent.audit')
     app.config.update(SECRET_KEY=session_key, MAX_CONTENT_LENGTH=8192,
                       SESSION_COOKIE_SECURE=True, SESSION_COOKIE_HTTPONLY=True,
@@ -75,20 +75,15 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role):
 
     @app.get('/healthz')
     def health():
-        return {'status': 'ok', 'version': '0.2.0'}
+        return {'status': 'ok', 'version': VERSION}
 
     @app.get('/')
     def index():
         session.clear()
-        session['csrf'] = secrets.token_urlsafe(32)
-        session['issued'] = time.time()
-        with nonce_lock:
-            expired = [n for n, expiry in nonces.items() if expiry <= time.time()]
-            for n in expired:
-                del nonces[n]
-            if len(nonces) >= 1000:
-                abort(429)
-            nonces[session['csrf']] = time.time() + 120
+        token = tokens.issue(request.headers['X-PSM-Authenticated-User'])
+        if token is None:
+            return 'Too many pending connections. Retry later.', 429, {'Retry-After': '120'}
+        session['csrf'] = token
         return render_template_string(FORM, csrf=session['csrf'])
 
     @app.post('/connect')
@@ -97,12 +92,9 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role):
         if set(request.form) != expected or any(len(request.form.getlist(k)) != 1 for k in expected):
             abort(400)
         csrf = session.pop('csrf', None)
-        issued = session.pop('issued', 0)
-        if not csrf or not hmac.compare_digest(csrf.encode(), request.form.get('csrf', '').encode()) or time.time() - issued > 120:
+        if not csrf or not hmac.compare_digest(csrf.encode(), request.form.get('csrf', '').encode()):
             abort(403)
-        with nonce_lock:
-            expiry = nonces.pop(csrf, 0)
-        if expiry <= time.time():
+        if not tokens.consume(csrf, request.headers['X-PSM-Authenticated-User']):
             abort(403)
         profile = profiles.get(request.form.get('profile', ''))
         sid, key = request.form.get('secret_id', ''), request.form.get('secret_key', '')
@@ -115,6 +107,8 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role):
             abort(400)
         # Label is supplied by the form, not proof of human identity. A random suffix avoids collisions.
         name = f'psm-{label}-{g.request_id}'
+        if not issuance_slots.acquire(blocking=False):
+            return 'Connection service busy. Start a new connection later.', 503, {'Retry-After': '5'}
         try:
             creds = sts(sid, key, profile['role_arn'], name, profile['duration_seconds'], profile['region'])
             url = login_url(creds, profile['destination'])
@@ -122,6 +116,7 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role):
             # Never allow exception text/tracebacks to include temporary or long-term secrets.
             return f'Tencent Cloud connection failed. Reference: {g.request_id}', 502
         finally:
+            issuance_slots.release()
             key = None
         session.clear()
         logger.info(json.dumps({'event': 'role_session_issued', 'request_id': g.request_id,
@@ -139,7 +134,8 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     settings = json.loads(Path(os.environ['PSM_TC_CONFIG']).read_text(encoding='utf-8'))
     app = create_app(settings, proxy_key=os.environ['PSM_TC_PROXY_KEY'], session_key=os.environ['PSM_TC_SESSION_KEY'])
-    serve(app, host='127.0.0.1', port=8765, threads=4)
+    serve(app, host='127.0.0.1', port=8765, threads=4, connection_limit=100,
+          max_request_body_size=8192, max_request_header_size=16384, channel_timeout=30)
 
 
 if __name__ == '__main__':

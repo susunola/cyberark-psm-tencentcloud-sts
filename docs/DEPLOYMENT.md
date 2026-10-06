@@ -20,7 +20,7 @@ Official references: [WinSW](https://github.com/winsw/winsw), [IIS reverse proxy
   -SettingsFile 'C:\Staging\settings.json'
 ```
 
-The script creates a venv, installs locked dependencies, generates independent random proxy/session keys in ACL-protected service XML, installs the service as LocalService, and starts it. It preserves diagnostic files on failure. It is not safe to run under transcript logging that captures generated secret values; do not enable debug tracing.
+The script creates a venv, installs locked dependencies, generates independent random proxy/session keys in ACL-protected service XML, installs the service as LocalService, and starts it, then verifies authenticated backend readiness. It preserves diagnostic files on failure. It is not safe to run under transcript logging that captures generated secret values; do not enable debug tracing.
 
 4. Create a dedicated IIS HTTPS site with a trusted certificate and its own physical root. Enable Windows Authentication, disable anonymous authentication, and restrict authorization to intended PSM service accounts. Do not alter unrelated IIS sites.
 5. Enable ARR proxy forwarding. Permit `HTTP_X_PSM_BRIDGE_KEY` and `HTTP_X_PSM_AUTHENTICATED_USER` as URL Rewrite server variables at the necessary scope. Copy `web.config.generated` from the installation directory to the dedicated site as `web.config`. Restrict its read access to administrators and the site's application pool identity. Never serve service XML/configuration files from that web root.
@@ -51,6 +51,7 @@ Run elevated PowerShell: `.\scripts\Uninstall-Bridge.ps1`. It stops/removes the 
 | IIS 500.50 / rewrite error | ARR/Rewrite installation, permitted server variables, configuration scope |
 | Backend 403 | Loopback peer, overwritten identity/key headers, correct proxy secret, expired/replayed CSRF |
 | Backend 400 | Form field mapping, duplicate fields, role profile/caller binding, audit label length/control characters |
+| Backend 503 | STS issuance is at capacity; respect Retry-After and start a new form |
 | Backend 502 | Safe correlation ID, STS network reachability, key state, trust policy, AssumeRole permission, duration |
 | Cloud login failure | Clock synchronization, role console-login enabled, signature/callback and cloud policy |
 | Recording absent | PSM framework/driver/PID configuration; bridge cannot create recordings |

@@ -13,6 +13,7 @@ from xml.etree import ElementTree
 from app import create_app, normalize_audit_label
 from configuration import validate_settings
 from federation import FederationError, login_url, validate_destination
+from version import VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -83,7 +84,7 @@ class HardeningTests(unittest.TestCase):
 
     def test_expired_csrf(self):
         data = self.form()
-        with patch('app.time.time', return_value=time.time() + 121):
+        with patch('security.time.monotonic', return_value=time.monotonic() + 121):
             self.assertEqual(self.post(data).status_code, 403)
         self.assertFalse(self.calls)
 
@@ -140,7 +141,7 @@ class HardeningTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
             for folder in (first, second):
                 subprocess.run([sys.executable, str(ROOT/'scripts/build_release.py'), '--out', folder], check=True, capture_output=True)
-            a = Path(first)/'psm-tencentcloud-sts-0.2.0-source.zip'
+            a = Path(first)/f'psm-tencentcloud-sts-{VERSION}-source.zip'
             b = Path(second)/a.name
             self.assertEqual(a.read_bytes(), b.read_bytes())
             with ZipFile(a) as archive:

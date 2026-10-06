@@ -23,7 +23,7 @@ try {
     New-Item -ItemType Directory -Path $InstallDir | Out-Null
     # Dedicated installation directory: administrators and SYSTEM only initially.
     Invoke-Checked -Exe 'icacls.exe' -Arguments @($InstallDir, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F')
-    foreach ($Name in @('app.py','federation.py','configuration.py','requirements.lock.txt')) {
+    foreach ($Name in @('app.py','federation.py','configuration.py','security.py','version.py','requirements.lock.txt')) {
         Copy-Item -LiteralPath (Join-Path $SourceDir $Name) -Destination $InstallDir
     }
     Copy-Item -LiteralPath $SettingsFile -Destination (Join-Path $InstallDir 'settings.json')
@@ -69,6 +69,18 @@ try {
     Invoke-Checked -Exe (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') -Arguments @('install')
     $Installed = $true
     Invoke-Checked -Exe (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') -Arguments @('start')
+    $Ready = $false
+    for ($Attempt = 0; $Attempt -lt 15; $Attempt++) {
+        try {
+            $Response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8765/healthz' -TimeoutSec 2 `
+                -Headers @{'X-PSM-Bridge-Key'=$ProxyKey; 'X-PSM-Authenticated-User'='installer-readiness'}
+            if ($Response.StatusCode -eq 200 -and ($Response.Content | ConvertFrom-Json).status -eq 'ok') {
+                $Ready = $true; break
+            }
+        } catch { }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $Ready) { throw 'Service readiness timed out.' }
     Write-Output 'Bridge installed. Configure the authenticated HTTPS proxy before connecting PSM.'
 } catch {
     if ($Installed) {

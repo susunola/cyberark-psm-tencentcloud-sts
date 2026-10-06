@@ -2,10 +2,14 @@
 import argparse
 import hashlib
 from pathlib import Path
+import sys
 from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = ['app.py', 'configuration.py', 'federation.py', 'README.md', 'README.zh-CN.md',
+sys.path.insert(0, str(ROOT))
+from version import VERSION
+
+FILES = ['app.py', 'configuration.py', 'federation.py', 'security.py', 'version.py', 'README.md', 'README.zh-CN.md',
          'requirements.in', 'requirements.lock.txt', 'WebFormFields.template.txt',
          'settings.example.json', 'cam-assume-policy.example.json', 'SECURITY.md',
          'CONTRIBUTING.md', 'CHANGELOG.md', 'NOTICE.md', 'LICENSE']
@@ -16,7 +20,7 @@ files = [ROOT / name for name in FILES]
 for folder in ('scripts', 'deployment', 'docs', 'tests'):
     files.extend(p for p in (ROOT / folder).rglob('*') if p.is_file() and p.suffix in ('.py', '.ps1', '.md', '.template'))
 args.out.mkdir(parents=True, exist_ok=True)
-archive = args.out / 'psm-tencentcloud-sts-0.2.0-source.zip'
+archive = args.out / f'psm-tencentcloud-sts-{VERSION}-source.zip'
 with ZipFile(archive, 'w', compression=ZIP_DEFLATED) as output:
     for path in sorted(files):
         data = path.read_bytes()

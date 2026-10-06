@@ -13,12 +13,14 @@ This package includes a runnable bridge and unit tests. It is not a platform ZIP
 
 ## Delivery status and operations
 
-Version 0.2.0 includes strict configuration validation, dedicated caller-to-role binding, Windows install/uninstall scripts, an IIS proxy template, safe audit correlation, CI, a reproducible source archive and SHA256 manifest. Original code uses the MIT license; maintainer: **susunola**.
+Version 0.2.1 includes strict configuration validation, dedicated caller-to-role binding, Windows install/uninstall scripts, an IIS proxy template, safe audit correlation, CI, a reproducible source archive and SHA256 manifest. Original code uses the MIT license; maintainer: **susunola**.
 
 - [Deployment, upgrade, rollback and troubleshooting](docs/DEPLOYMENT.md)
 - [Acceptance record and release gates](docs/ACCEPTANCE.md)
 - [Marketplace submission draft](docs/MARKETPLACE-SUBMISSION.md)
 - [Security policy](SECURITY.md) · [Contribution guide](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+
+Version 0.2.1 also binds form tokens to proxy identities, uses monotonic expiration and caps concurrent STS issuance at two requests. Overload returns 503/Retry-After; start a new connection after waiting. The installer verifies service readiness.
 
 Run `python scripts/check_config.py settings.json` before deployment. Use the install script documented in the deployment guide; Windows runtime and real PSM/cloud acceptance remain pending. Each caller SecretId can belong to only one profile; use distinct callers for distinct privilege tiers.
 
