@@ -11,3 +11,7 @@ settings.json
 *.pfx
 *.zip
 .DS_Store
+dist/
+build/
+*.egg-info/
+.pytest_cache/

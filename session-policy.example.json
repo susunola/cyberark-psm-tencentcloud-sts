@@ -1,0 +1,8 @@
+{
+  "version": "2.0",
+  "statement": [{
+    "effect": "allow",
+    "action": ["cvm:Describe*", "vpc:Describe*"],
+    "resource": ["*"]
+  }]
+}

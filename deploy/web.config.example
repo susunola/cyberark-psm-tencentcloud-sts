@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Shape only. Do not put the proxy key in this file.
+  Strip client-supplied bridge headers, then set them from protected server variables
+  before ARR forwards to http://127.0.0.1:8765.
+-->
+<configuration>
+  <system.webServer>
+    <security>
+      <authentication>
+        <anonymousAuthentication enabled="false" />
+        <windowsAuthentication enabled="true" />
+      </authentication>
+    </security>
+    <rewrite>
+      <rules>
+        <rule name="Drop client bridge headers">
+          <match url=".*" />
+          <serverVariables>
+            <set name="HTTP_X_PSM_BRIDGE_KEY" value="" />
+            <set name="HTTP_X_PSM_AUTHENTICATED_USER" value="" />
+          </serverVariables>
+        </rule>
+      </rules>
+    </rewrite>
+    <httpProtocol>
+      <customHeaders>
+        <add name="Cache-Control" value="no-store" />
+        <add name="Referrer-Policy" value="no-referrer" />
+      </customHeaders>
+    </httpProtocol>
+  </system.webServer>
+</configuration>

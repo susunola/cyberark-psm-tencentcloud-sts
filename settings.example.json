@@ -1,4 +1,5 @@
 {
+  "submit_method": "post",
   "profiles": {
     "tc-readonly": {
       "role_arn": "qcs::cam::uin/100000000001:roleName/PSMReadOnly",
