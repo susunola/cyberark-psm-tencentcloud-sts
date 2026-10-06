@@ -19,3 +19,5 @@ maintenance-state/
 rotation*.json
 connection*.json
 playback*.json
+*.jsonl
+inventory*.json

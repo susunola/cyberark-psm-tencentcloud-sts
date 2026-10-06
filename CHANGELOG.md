@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 — 2026-10-06
+
+- Complete public-interface request operations with ticket/time-window fields, request details and explicit request removal.
+- Add live session details/activity/properties and bounded account/session/recording exports. Reject repeated/incomplete pages and never follow server-provided next URLs.
+- Add fully validated batch onboarding with preexisting-name probes and fsynced, credential-free attempt/confirmation journals. Uncertain writes never auto-retry or roll back accounts.
+- Add local audit aggregates with deduplication/size limits and timestamped bridge events; no identity/URL/raw-field export.
+- Add read-only deployment preflight with scope/binding checks and interface probes; target acceptance is explicitly excluded.
+- Include the minimal audit package in Windows runtime installs and document the upgrade requirement.
+- Consolidate delivered capabilities and external packaging/acceptance/certification dependencies into one bilingual delivery ledger.
+
 ## 0.4.1 — 2026-10-06
 
 - Validate every maintenance job before remote actions, canonicalize UINs and reject case-insensitive/Windows-reserved filename collisions.

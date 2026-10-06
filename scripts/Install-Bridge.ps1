@@ -26,6 +26,10 @@ try {
     foreach ($Name in @('app.py','federation.py','configuration.py','security.py','runtime.py','version.py','requirements.lock.txt')) {
         Copy-Item -LiteralPath (Join-Path $SourceDir $Name) -Destination $InstallDir
     }
+    New-Item -ItemType Directory -Path (Join-Path $InstallDir 'pam') | Out-Null
+    foreach ($Name in @('__init__.py','audit.py')) {
+        Copy-Item -LiteralPath (Join-Path $SourceDir "pam\$Name") -Destination (Join-Path $InstallDir 'pam')
+    }
     Copy-Item -LiteralPath $SettingsFile -Destination (Join-Path $InstallDir 'settings.json')
     Invoke-Checked -Exe $PythonExe -Arguments @('-m','venv',(Join-Path $InstallDir 'venv'))
     $ServicePython = Join-Path $InstallDir 'venv\Scripts\python.exe'

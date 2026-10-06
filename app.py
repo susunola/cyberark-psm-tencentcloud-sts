@@ -13,6 +13,7 @@ from federation import assume_role, login_url
 from configuration import load_settings, validate_settings
 from security import TokenStore, TokenStoreError, configured_token_store, shared_environment
 from version import VERSION
+from pam.audit import event as audit_event
 
 FORM = '''<!doctype html><html lang="en"><meta charset="utf-8"><title>Tencent Cloud role connection</title>
 <body><h1>Tencent Cloud role connection</h1><form method="post" action="/connect" autocomplete="off">
@@ -71,7 +72,7 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role, token_store
             'X-Request-ID': g.request_id,
             'Content-Security-Policy': "default-src 'none'; form-action 'self' https://cloud.tencent.com https://console.cloud.tencent.com; frame-ancestors 'none'; base-uri 'none'"})
         # No form values, URL queries, cookies, Location headers or exception messages.
-        logger.info(json.dumps({'event': 'http_result', 'request_id': g.request_id,
+        logger.info(audit_event({'event': 'http_result', 'request_id': g.request_id,
                               'status': response.status_code}))
         return response
 
@@ -130,7 +131,7 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role, token_store
             issuance_slots.release()
             key = None
         session.clear()
-        logger.info(json.dumps({'event': 'role_session_issued', 'request_id': g.request_id,
+        logger.info(audit_event({'event': 'role_session_issued', 'request_id': g.request_id,
                               'profile': request.form['profile'],
                               'proxy_identity': request.headers['X-PSM-Authenticated-User'],
                               'role_session_name': name}))

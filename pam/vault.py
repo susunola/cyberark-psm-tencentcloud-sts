@@ -76,12 +76,12 @@ class Vault:
         return result['id']
 
     def list_operations(self, resource, limit=100, offset=0):
-        if resource not in ('LiveSessions', 'Recordings', 'IncomingRequests', 'MyRequests'):
+        if resource not in ('Accounts', 'LiveSessions', 'Recordings', 'IncomingRequests', 'MyRequests'):
             raise ValueError('Unsupported operational resource')
         if not 1 <= limit <= 100 or offset < 0:
             raise ValueError('Invalid page bounds')
         # Approval list APIs differ in pagination support. Preserve their native response.
-        query = f'?limit={limit}&offset={offset}' if resource in ('LiveSessions', 'Recordings') else ''
+        query = f'?limit={limit}&offset={offset}' if resource in ('Accounts', 'LiveSessions', 'Recordings') else ''
         return self.request('GET', '/' + resource + query)
 
     def session_action(self, session_id, action):
@@ -91,14 +91,24 @@ class Vault:
         self.request('POST', '/LiveSessions/' + identifier + '/' + action)
         return {'session_id': session_id, 'action': action, 'status': 'accepted-by-PVWA'}
 
-    def access_request(self, account_id, reason, component):
+    def access_request(self, account_id, reason, component, *, ticket_id=None, ticket_system=None, from_date=None, to_date=None):
         self.account_path(account_id)
         if not isinstance(reason, str) or not reason.strip() or len(reason) > 1024:
             raise ValueError('A bounded request reason is required')
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', component):
             raise ValueError('Explicit connection component required')
-        return self.request('POST', '/MyRequests', {'AccountID': account_id, 'Reason': reason,
-                            'UseConnect': True, 'ConnectionComponent': component})
+        payload = {'AccountID': account_id, 'Reason': reason, 'UseConnect': True, 'ConnectionComponent': component}
+        if bool(ticket_id) != bool(ticket_system):
+            raise ValueError('Supply ticket ID and system together')
+        if ticket_id:
+            if not all(isinstance(v, str) and 1 <= len(v) <= 256 for v in (ticket_id, ticket_system)):
+                raise ValueError('Invalid ticket fields')
+            payload.update(TicketID=ticket_id, TicketingSystem=ticket_system)
+        if from_date is not None or to_date is not None:
+            if type(from_date) is not int or type(to_date) is not int or not 0 <= from_date < to_date <= 253402300799:
+                raise ValueError('Explicit ordered Unix-second request window required')
+            payload.update(FromDate=from_date, ToDate=to_date)
+        return self.request('POST', '/MyRequests', payload)
 
     def request_decision(self, request_id, decision, reason):
         if decision not in ('confirm', 'reject') or not isinstance(reason, str) or not reason.strip() or len(reason) > 1024:
@@ -160,3 +170,26 @@ class Vault:
             raise ValueError('Unsupported recording operation')
         identifier = self.account_path(recording_id).rsplit('/', 1)[1]
         return self.request('GET', '/Recordings/' + identifier + suffixes[section])
+
+    def session_details(self, session_id, section='details'):
+        if section not in ('details', 'activities', 'properties'):
+            raise ValueError('Unsupported session detail')
+        identifier = self.account_path(session_id).rsplit('/', 1)[1]
+        return self.request('GET', '/LiveSessions/' + identifier + ('' if section == 'details' else '/' + section))
+
+    def request_details(self, request_id, incoming=False):
+        identifier = self.account_path(request_id).rsplit('/', 1)[1]
+        return self.request('GET', ('/IncomingRequests/' if incoming else '/MyRequests/') + identifier)
+
+    def cancel_request(self, request_id):
+        identifier = self.account_path(request_id).rsplit('/', 1)[1]
+        self.request('DELETE', '/MyRequests/' + identifier)
+        return {'request_id': request_id, 'status': 'request-removal-accepted', 'note': 'Existing cloud sessions are not revoked'}
+
+    def find_accounts_by_name(self, name, safe):
+        result = self.request('GET', '/Accounts?search=' + quote(name, safe='') + '&limit=1000')
+        if not isinstance(result, dict) or not isinstance(result.get('value'), list):
+            raise VaultError('Unsupported account lookup')
+        if result.get('nextLink') or result.get('count', len(result['value'])) > len(result['value']):
+            raise VaultError('Incomplete account lookup; reconcile before onboarding')
+        return [a for a in result['value'] if a.get('name') == name and a.get('safeName') == safe]

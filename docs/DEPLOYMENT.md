@@ -58,3 +58,5 @@ Run elevated PowerShell: `.\scripts\Uninstall-Bridge.ps1`. It stops/removes the 
 | Service fails to start | Machine-wide Python ACLs, LocalService venv read access, log folder write access, invalid settings |
 
 Only collect sanitized diagnostics. Do not attach complete URLs, cookies, SecretKeys, proxy secrets, service XML or raw request bodies to tickets.
+
+From 0.5.0, the runtime also requires `pam/__init__.py` and `pam/audit.py`. Include this minimal package when upgrading root runtime files; see the [delivery ledger](DELIVERY.md).
