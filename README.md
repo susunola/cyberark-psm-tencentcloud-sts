@@ -24,7 +24,7 @@ Version 0.2.2 also binds form tokens to proxy identities, uses monotonic expirat
 
 Run `python scripts/check_config.py settings.json` before deployment. Use the install script documented in the deployment guide; Windows runtime and real PSM/cloud acceptance remain pending. Each caller SecretId can belong to only one profile; use distinct callers for distinct privilege tiers.
 
-Version 0.2.2 adds actual loopback HTTP integration tests against Waitress (cloud calls remain mocked), strict JSON loading including duplicate-key rejection, and sanitized startup failures. A CI template is available in `deployment/ci-workflow.yml.template`; enabling it requires GitHub workflow permission.
+Version 0.2.2 adds actual loopback HTTP integration tests against Waitress (cloud calls remain mocked), strict JSON loading including duplicate-key rejection, and sanitized startup failures. GitHub Actions CI is enabled for Windows Server 2025 and Ubuntu 24.04 with Python 3.11–3.13. The workflow pins Actions to specific commits. A matching template is included in `deployment/ci-workflow.yml.template`.
 
 ## Files
 

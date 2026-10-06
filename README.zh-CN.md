@@ -19,7 +19,7 @@
 
 部署前执行 `python scripts/check_config.py settings.json`。每个 SecretId 只能属于一个角色配置；不同权限等级使用不同调用主体。Windows 运行与真实 PSM/腾讯云验收仍待完成。
 
-0.2.2 增加了真实环回 HTTP/Waitress 集成测试（云端调用仍使用模拟）、重复 JSON 键拒绝和启动错误脱敏。CI 模板在 `deployment/ci-workflow.yml.template`，启用仍需 GitHub workflow 权限。
+0.2.2 增加了真实环回 HTTP/Waitress 集成测试（云端调用仍使用模拟）、重复 JSON 键拒绝和启动错误脱敏。GitHub Actions CI 已启用，覆盖 Windows Server 2025、Ubuntu 24.04 的 Python 3.11–3.13。Actions 固定到具体提交，模板同步保存在 `deployment/ci-workflow.yml.template`。
 
 ## 文件
 
