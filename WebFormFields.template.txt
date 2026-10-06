@@ -1,0 +1,5 @@
+secret_id > {TencentSecretId} (searchby=id)
+secret_key > {Password} (searchby=id)
+profile > {TencentRoleProfile} (searchby=id)
+audit_label > {ClientUserName} (searchby=id)
+connect_button > (Button) (searchby=id)
