@@ -9,6 +9,7 @@ import time
 import threading
 import logging
 import uuid
+import hashlib
 
 from flask import Flask, abort, g, redirect, render_template_string, request, session
 from federation import FederationError, assume_role, login_url, validate_destination
@@ -20,8 +21,17 @@ FORM = '''<!doctype html><html lang="en"><meta charset="utf-8"><title>Tencent Cl
 <label>SecretId <input id="secret_id" name="secret_id" required maxlength="256"></label><br>
 <label>SecretKey <input id="secret_key" name="secret_key" type="password" required maxlength="512"></label><br>
 <label>Role profile <input id="profile" name="profile" required maxlength="80"></label><br>
-<label>Audit label <input id="audit_label" name="audit_label" required maxlength="64"></label><br>
+<label>Audit label <input id="audit_label" name="audit_label" required maxlength="256"></label><br>
 <button id="connect_button" type="submit">Connect</button></form></body></html>'''
+
+
+def normalize_audit_label(label):
+    if not isinstance(label, str) or not 2 <= len(label) <= 256 or any(ord(c) < 32 for c in label):
+        raise ValueError('Invalid audit label')
+    if re.fullmatch(r'[A-Za-z0-9_.@=-]{2,64}', label):
+        return label
+    readable = re.sub(r'[^A-Za-z0-9_.@=-]', '-', label).strip('-')[:40] or 'user'
+    return readable + '-' + hashlib.sha256(label.encode()).hexdigest()[:16]
 
 
 def create_app(settings, *, proxy_key, session_key, sts=assume_role):
@@ -97,8 +107,11 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role):
         profile = profiles.get(request.form.get('profile', ''))
         sid, key = request.form.get('secret_id', ''), request.form.get('secret_key', '')
         label = request.form.get('audit_label', '')
-        if (not profile or sid not in profile['allowed_secret_ids'] or not 1 <= len(key) <= 512
-                or not re.fullmatch(r'[A-Za-z0-9_.@=-]{2,64}', label)):
+        if not profile or sid not in profile['allowed_secret_ids'] or not 1 <= len(key) <= 512:
+            abort(400)
+        try:
+            label = normalize_audit_label(label)
+        except ValueError:
             abort(400)
         # Label is supplied by the form, not proof of human identity. A random suffix avoids collisions.
         name = f'psm-{label}-{g.request_id}'

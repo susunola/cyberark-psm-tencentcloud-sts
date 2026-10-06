@@ -75,7 +75,7 @@ class BridgeTests(unittest.TestCase):
         self.assertFalse(self.calls)
 
     def test_profile_and_key_allowlist(self):
-        for name, value in [('profile', 'administrator'), ('secret_id', 'unapproved-id'), ('audit_label', 'bad/name')]:
+        for name, value in [('profile', 'administrator'), ('secret_id', 'unapproved-id'), ('audit_label', 'bad\nname')]:
             data = self.form(); data[name] = value
             self.assertEqual(self.post(data).status_code, 400)
         self.assertFalse(self.calls)

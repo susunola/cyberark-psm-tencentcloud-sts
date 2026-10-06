@@ -50,7 +50,7 @@ Run elevated PowerShell: `.\scripts\Uninstall-Bridge.ps1`. It stops/removes the 
 | IIS 401 | Browser integrated authentication, site authorization and actual PSM Windows account |
 | IIS 500.50 / rewrite error | ARR/Rewrite installation, permitted server variables, configuration scope |
 | Backend 403 | Loopback peer, overwritten identity/key headers, correct proxy secret, expired/replayed CSRF |
-| Backend 400 | Form field mapping, duplicate fields, role profile/caller binding, audit label format |
+| Backend 400 | Form field mapping, duplicate fields, role profile/caller binding, audit label length/control characters |
 | Backend 502 | Safe correlation ID, STS network reachability, key state, trust policy, AssumeRole permission, duration |
 | Cloud login failure | Clock synchronization, role console-login enabled, signature/callback and cloud policy |
 | Recording absent | PSM framework/driver/PID configuration; bridge cannot create recordings |

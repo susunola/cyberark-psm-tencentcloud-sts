@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 from xml.etree import ElementTree
 
-from app import create_app
+from app import create_app, normalize_audit_label
 from configuration import validate_settings
 from federation import FederationError, login_url, validate_destination
 
@@ -124,6 +124,16 @@ class HardeningTests(unittest.TestCase):
         variables = {v.attrib['name']: v.attrib['value'] for v in root.findall('.//serverVariables/set')}
         self.assertEqual(variables['HTTP_X_PSM_AUTHENTICATED_USER'], '{REMOTE_USER}')
         self.assertEqual(variables['HTTP_X_PSM_BRIDGE_KEY'], 'REPLACE_WITH_PRIVATE_PROXY_KEY')
+
+    def test_enterprise_audit_labels(self):
+        for label in ('DOMAIN\\alice', '张三', 'alice'*40):
+            value = normalize_audit_label(label)
+            self.assertRegex(value, r'^[A-Za-z0-9_.@=-]{2,64}$')
+            self.assertEqual(value, normalize_audit_label(label))
+        self.assertNotEqual(normalize_audit_label('DOMAIN\\alice'), normalize_audit_label('DOMAIN/alice'))
+        data = self.form(); data['audit_label'] = 'DOMAIN\\alice'
+        self.assertEqual(self.post(data).status_code, 303)
+        self.assertLessEqual(len(self.calls[0][3]), 128)
 
     def test_release_is_reproducible_and_excludes_secrets(self):
         from zipfile import ZipFile
