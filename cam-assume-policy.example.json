@@ -1,0 +1,8 @@
+{
+  "version": "2.0",
+  "statement": [{
+    "effect": "allow",
+    "action": ["name/sts:AssumeRole"],
+    "resource": ["qcs::cam::uin/100000000001:roleName/PSMReadOnly"]
+  }]
+}
