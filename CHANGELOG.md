@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 — 2026-10-06
+
+- Add scoped native guest CPM Verify/Change/Reconcile submission and sanitized account status.
+- Capture native PSM connection and recording playback responses into exclusive private files; add recording detail/activity/validity queries.
+- Probe standard PVWA read interfaces without inferring write permissions or universal version support.
+- Recover verified replacement tickets after interrupted preparations; never recreate lost keys automatically.
+- Add scheduler-neutral, scope-pinned verification/preparation jobs with crash journals and exclusive state locks.
+- Add optional TLS Redis token storage, atomic cross-node consumption, fail-closed outages and protected Windows cluster configuration.
+- Add a dedicated real Redis CI job and document failover/production acceptance boundaries.
+- Native CPM binaries/platform import packages and target-environment acceptance remain dependent on the installed CyberArk framework.
+
 ## 0.3.0 — 2026-10-06
 
 - Add administrative PVWA REST adapters for account onboarding, access requests, explicit approval decisions, session controls and recording metadata.

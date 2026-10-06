@@ -1,0 +1,13 @@
+{
+  "jobs": [
+    {
+      "id": "readonly-caller",
+      "action": "verify-cam",
+      "account": "REPLACE_VAULT_ACCOUNT_ID",
+      "target_uin": "REPLACE_CAM_SUBUSER_UIN",
+      "profile": "readonly",
+      "safe": "REPLACE_SAFE",
+      "platform": "REPLACE_PLATFORM_ID"
+    }
+  ]
+}

@@ -97,3 +97,42 @@ def restore_old(cloud, target, old_sid):
         raise LifecycleError('Cannot restore a deleted key')
     cloud.set_key_status(target, old_sid, 'Active')
     return {'status': 'old-key-reactivated'}
+
+
+def recover_ticket(cloud, vault, journal):
+    """Read-only recovery: discover a verified pair after an uncertain prepare outcome."""
+    required = {'operation', 'status', 'target_uin', 'old_account', 'profile'}
+    if not isinstance(journal, dict) or set(journal) != required or journal['status'] != 'preparing':
+        raise LifecycleError('Use an intact prepare journal with account/profile scope')
+    operation = journal['operation']
+    if not isinstance(operation, str) or not re.fullmatch(r'[a-f0-9]{32}', operation):
+        raise LifecycleError('Invalid operation ID')
+    target = str(uin(journal['target_uin']))
+    old = vault.account(journal['old_account'])
+    props = old.get('platformAccountProperties', {})
+    if not props.get('TencentSecretId') or props.get('TencentRoleProfile') != journal['profile']:
+        raise LifecycleError('Old account/profile binding mismatch')
+    keys = cloud.keys(target)
+    candidates = [k for k in keys if k['description'] == 'psm-rotation:' + operation]
+    if len(candidates) != 1 or candidates[0]['status'] != 'Active':
+        raise LifecycleError('Need exactly one active replacement key; inspect cloud inventory')
+    new_sid = candidates[0]['id']
+    if new_sid == props['TencentSecretId'] or props['TencentSecretId'] not in {k['id'] for k in keys}:
+        raise LifecycleError('Old/replacement cloud binding mismatch')
+    accounts = vault.find_rotation_accounts(operation)
+    if len(accounts) != 1:
+        raise LifecycleError('Need exactly one saved replacement account; no new key or secret is created during recovery')
+    new = vault.account(accounts[0]['id'])
+    new_props = new.get('platformAccountProperties', {})
+    if new_props.get('TencentSecretId') != new_sid or new_props.get('TencentRoleProfile') != journal['profile']:
+        raise LifecycleError('Replacement binding mismatch')
+    if any(old.get(k) != new.get(k) or not old.get(k) for k in ('safeName', 'platformId', 'userName', 'address')):
+        raise LifecycleError('Replacement scope mismatch')
+    if old['id'] == new['id']:
+        raise LifecycleError('Replacement account must differ')
+    secret = vault.secret(new['id'], 'Recover Tencent staged rotation ' + operation)
+    try:
+        cloud.verify(new_sid, secret, target)
+    finally:
+        secret = None
+    return Ticket(operation, target, old['id'], new['id'], props['TencentSecretId'], new_sid, journal['profile'])

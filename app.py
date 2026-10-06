@@ -11,7 +11,7 @@ import hashlib
 from flask import Flask, abort, g, redirect, render_template_string, request, session
 from federation import assume_role, login_url
 from configuration import load_settings, validate_settings
-from security import TokenStore
+from security import TokenStore, TokenStoreError, configured_token_store, shared_environment
 from version import VERSION
 
 FORM = '''<!doctype html><html lang="en"><meta charset="utf-8"><title>Tencent Cloud role connection</title>
@@ -33,14 +33,14 @@ def normalize_audit_label(label):
     return readable + '-' + hashlib.sha256(label.encode()).hexdigest()[:16]
 
 
-def create_app(settings, *, proxy_key, session_key, sts=assume_role):
+def create_app(settings, *, proxy_key, session_key, sts=assume_role, token_store=None):
     if len(proxy_key) < 32 or len(session_key) < 32:
         raise ValueError('Proxy and session keys must each be at least 32 characters')
     if proxy_key == session_key:
         raise ValueError('Use independent proxy and session keys')
     profiles = validate_settings(settings)['profiles']
     app = Flask(__name__)
-    tokens = TokenStore()
+    tokens = token_store if token_store is not None else TokenStore()
     issuance_slots = threading.BoundedSemaphore(2)
     logger = logging.getLogger('psm_tencent.audit')
     app.config.update(SECRET_KEY=session_key, MAX_CONTENT_LENGTH=8192,
@@ -77,7 +77,16 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role):
 
     @app.get('/healthz')
     def health():
+        try:
+            tokens.check()
+        except TokenStoreError:
+            return {'status': 'unavailable', 'version': VERSION}, 503
         return {'status': 'ok', 'version': VERSION}
+
+    @app.errorhandler(TokenStoreError)
+    def token_backend_failure(error):
+        session.clear()
+        return 'Connection service unavailable. Start a new connection later.', 503, {'Retry-After': '5'}
 
     @app.get('/')
     def index():
@@ -135,9 +144,11 @@ def main():
     from runtime import make_server
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     try:
-        settings = load_settings(os.environ['PSM_TC_CONFIG'])
-        app = create_app(settings, proxy_key=os.environ['PSM_TC_PROXY_KEY'], session_key=os.environ['PSM_TC_SESSION_KEY'])
-    except (OSError, KeyError, ValueError):
+        environment = shared_environment(os.environ)
+        settings = load_settings(environment['PSM_TC_CONFIG'])
+        app = create_app(settings, proxy_key=environment['PSM_TC_PROXY_KEY'], session_key=environment['PSM_TC_SESSION_KEY'],
+                         token_store=configured_token_store(environment))
+    except Exception:
         raise SystemExit('Bridge startup configuration invalid. Check service environment and settings.') from None
     make_server(app).run()
 

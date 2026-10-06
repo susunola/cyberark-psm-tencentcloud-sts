@@ -18,7 +18,7 @@ parser.add_argument('--out', type=Path, required=True)
 args = parser.parse_args()
 files = [ROOT / name for name in FILES]
 for folder in ('scripts', 'deployment', 'docs', 'tests', 'pam'):
-    files.extend(p for p in (ROOT / folder).rglob('*') if p.is_file() and p.suffix in ('.py', '.ps1', '.md', '.template'))
+    files.extend(p for p in (ROOT / folder).rglob('*') if p.is_file() and (p.suffix in ('.py', '.ps1', '.md', '.template') or p.name.endswith('.example.json')))
 args.out.mkdir(parents=True, exist_ok=True)
 archive = args.out / f'psm-tencentcloud-sts-{VERSION}-source.zip'
 with ZipFile(archive, 'w', compression=ZIP_DEFLATED) as output:

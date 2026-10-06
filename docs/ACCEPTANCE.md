@@ -41,3 +41,7 @@ Production support and AWS-connector quality equivalence cannot be claimed until
 ## Administrative toolkit (0.3.0)
 
 Offline tests cover lifecycle retention, uncertain writes, scope/identity checks, role failures, explicit write guards, REST request shapes and CVM plans. API calls are mocked. Live CAM rotation, PVWA onboarding/approval/session controls and guest SSH/RDP require separate target-environment acceptance. See [capability boundaries](PAM-CAPABILITIES.md).
+
+## Shared tokens and native operations (0.4.0)
+
+Dedicated CI validates actual Redis token races/expiry/cross-node form consumption. Production TLS/failover fencing and target PSM remain unverified. Native CPM task completion, connection/playback response compatibility and maintenance jobs need target acceptance. No native platform/CPM import package is certified.

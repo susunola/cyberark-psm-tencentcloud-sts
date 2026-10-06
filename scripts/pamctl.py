@@ -10,8 +10,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from configuration import load_settings
 from pam.cloud import Cloud
 from pam.vault import Vault
-from pam.lifecycle import Ticket, prepare, finalize, restore_old
+from pam.lifecycle import Ticket, prepare, finalize, restore_old, recover_ticket
 from pam.planning import cvm_plan
+from pam.files import read_json, private_output, save_json
 
 
 def vault():
@@ -26,6 +27,20 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('capabilities')
+    account_status = commands.add_parser('status'); account_status.add_argument('--account', required=True)
+    cpm = commands.add_parser('cpm')
+    cpm.add_argument('--account', required=True); cpm.add_argument('--action', choices=('Verify', 'Change', 'Reconcile'), required=True)
+    cpm.add_argument('--safe', required=True); cpm.add_argument('--platform', required=True); cpm.add_argument('--apply', action='store_true')
+    connect = commands.add_parser('connect')
+    connect.add_argument('--account', required=True); connect.add_argument('--component', required=True)
+    connect.add_argument('--reason', required=True); connect.add_argument('--out', required=True)
+    connect.add_argument('--ticket-id'); connect.add_argument('--ticket-system'); connect.add_argument('--apply', action='store_true')
+    recover = commands.add_parser('recover-ticket')
+    recover.add_argument('--journal', required=True); recover.add_argument('--ticket', required=True); recover.add_argument('--apply', action='store_true')
+    recording = commands.add_parser('recording')
+    recording.add_argument('--id', required=True); recording.add_argument('--section', choices=('details','activities','properties','valid'), default='details')
+    playback = commands.add_parser('playback')
+    playback.add_argument('--id', required=True); playback.add_argument('--out', required=True); playback.add_argument('--apply', action='store_true')
     listing = commands.add_parser('list')
     listing.add_argument('resource', choices=('LiveSessions', 'Recordings', 'IncomingRequests', 'MyRequests'))
     listing.add_argument('--limit', type=int, default=100); listing.add_argument('--offset', type=int, default=0)
@@ -55,12 +70,35 @@ def main():
     restore = commands.add_parser('restore-old'); restore.add_argument('--ticket', required=True)
     restore.add_argument('--apply', action='store_true')
     args = parser.parse_args()
-    if args.command in ('prepare', 'finalize', 'restore-old', 'onboard', 'session', 'request', 'decision') and not args.apply:
+    if args.command in ('prepare', 'finalize', 'restore-old', 'onboard', 'session', 'request', 'decision', 'cpm', 'connect', 'recover-ticket', 'playback') and not args.apply:
         print(json.dumps({'status': 'no-write', 'operation': args.command, 'next': 'Review configuration, then explicitly supply --apply'}))
         return
     try:
         if args.command == 'capabilities':
             result = vault().capability_probe()
+        elif args.command == 'status':
+            result = vault().account_status(args.account)
+        elif args.command == 'recording':
+            result = vault().recording(args.id, args.section)
+        elif args.command == 'playback':
+            with private_output(args.out) as sink:
+                save_json(sink, vault().recording(args.id, 'play'))
+            result = {'status':'native-playback-response-saved', 'path':args.out,
+                      'note':'Use the native player; treat playback URLs as credentials'}
+        elif args.command == 'cpm':
+            result = vault().native_cpm(args.account, args.action, args.safe, args.platform)
+        elif args.command == 'connect':
+            # Reserve the protected sink before requesting a sensitive native launch response.
+            with private_output(args.out) as sink:
+                launch = vault().connect(args.account, args.component, args.reason, args.ticket_id, args.ticket_system)
+                save_json(sink, launch)
+            result = {'status': 'native-connection-response-saved', 'path': args.out,
+                      'note': 'Treat this file as a credential; use the configured native PSM client'}
+        elif args.command == 'recover-ticket':
+            with private_output(args.ticket) as sink:
+                ticket = recover_ticket(cloud(), vault(), read_json(args.journal))
+                save_json(sink, ticket.public())
+            result = {'status': 'verified-ticket-recovered', **ticket.public()}
         elif args.command == 'list':
             result = vault().list_operations(args.resource, args.limit, args.offset)
         elif args.command == 'session':
@@ -72,13 +110,14 @@ def main():
         elif args.command == 'discover':
             result = cloud().discover(args.regions)
         elif args.command == 'cvm-plan':
-            result = cvm_plan(json.loads(Path(args.inventory).read_text()), args.safe,
-                args.linux_platform, args.windows_platform, json.loads(Path(args.usernames).read_text()))
+            result = cvm_plan(read_json(args.inventory), args.safe,
+                args.linux_platform, args.windows_platform, read_json(args.usernames))
         elif args.command == 'verify':
-            credential = json.loads(sys.stdin.read(8193))
-            result = {'verified': cloud().verify(credential['secret_id'], credential['secret_key'], args.target_uin)}
+            credential = read_json(stream=sys.stdin, limit=8192)
+            caller = Cloud(credential['secret_id'], credential['secret_key'])
+            result = {'verified': caller.verify(credential['secret_id'], credential['secret_key'], args.target_uin)}
         elif args.command == 'onboard':
-            payload = json.loads(sys.stdin.read(65537))
+            payload = read_json(stream=sys.stdin, limit=65536)
             if isinstance(payload, dict):
                 # Local proposal metadata is not a PVWA account property.
                 component = payload.pop('connection_component', None)
@@ -93,21 +132,22 @@ def main():
         elif args.command == 'prepare':
             # Reserve a journal path BEFORE cloud mutation; never overwrite a previous attempt.
             path = Path(args.ticket)
-            with path.open('x', encoding='utf-8') as journal:
+            with private_output(path) as journal:
                 operation = uuid.uuid4().hex
-                journal.write(json.dumps({'operation': operation, 'status': 'preparing', 'target_uin': args.target_uin}))
+                save_json(journal, {'operation': operation, 'status': 'preparing', 'target_uin': args.target_uin,
+                                   'old_account': args.old_account, 'profile': args.profile})
             try:
                 ticket = prepare(cloud(), vault(), args.old_account, args.target_uin, args.profile, operation)
             except Exception:
                 raise RuntimeError('Preparation incomplete. Inspect reserved journal and cloud/Vault inventory; do not retry blindly.') from None
             # Atomic same-directory replacement; the journal never contains a SecretKey.
             temporary = path.with_name(path.name + '.tmp')
-            with temporary.open('x', encoding='utf-8') as stream:
-                json.dump(ticket.public(), stream)
+            with private_output(temporary) as stream:
+                save_json(stream, ticket.public())
             os.replace(temporary, path)
             result = {'status': 'prepared-old-key-retained', **ticket.public()}
         else:
-            ticket = Ticket(**json.loads(Path(args.ticket).read_text()))
+            ticket = Ticket(**read_json(args.ticket))
             if args.command == 'finalize':
                 result = finalize(cloud(), vault(), ticket, load_settings(args.settings), confirmed_cutover=args.confirm_psm_cutover)
             else:

@@ -14,3 +14,8 @@ settings.json
 dist/
 web.config.generated
 PSMTencentCloudSTS.xml
+shared-secrets.json
+maintenance-state/
+rotation*.json
+connection*.json
+playback*.json

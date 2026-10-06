@@ -4,7 +4,9 @@ import requests
 
 
 class VaultError(Exception):
-    pass
+    def __init__(self, message, status=None):
+        super().__init__(message)
+        self.status = status
 
 
 class Vault:
@@ -20,14 +22,16 @@ class Vault:
         self.session = session or requests.Session()
         self.session.trust_env = False
 
-    def request(self, method, path, payload=None):
+    def request(self, method, path, payload=None, *, accept='application/json'):
         try:
             response = self.session.request(method, self.url + path, json=payload,
-                headers={'Authorization': self.token, 'Content-Type': 'application/json'},
+                headers={'Authorization': self.token, 'Content-Type': 'application/json', 'Accept': accept},
                 timeout=(5, 20), verify=self.ca, allow_redirects=False)
             if not 200 <= response.status_code < 300:
-                raise VaultError('PVWA request denied or failed')
+                raise VaultError('PVWA request denied or failed', response.status_code)
             return response.json() if response.content else None
+        except VaultError:
+            raise
         except Exception:
             # No response body, URL, token, request payload or raw exception is returned.
             raise VaultError('PVWA request failed; verify API capability, TLS and permissions') from None
@@ -42,7 +46,16 @@ class Vault:
         result = self.request('GET', '/Accounts?limit=1')
         if not isinstance(result, dict) or not isinstance(result.get('value'), list):
             raise VaultError('Unsupported account-list response')
-        return {'account_list': True, 'writes': 'not probed', 'session_recording': 'provided by PSM'}
+        resources = {'Accounts': 'available-read'}
+        for resource in ('LiveSessions', 'Recordings', 'IncomingRequests', 'MyRequests'):
+            try:
+                value = self.list_operations(resource, limit=1)
+                resources[resource] = 'available-read' if isinstance(value, (dict, list)) else 'unexpected-response'
+            except VaultError as error:
+                resources[resource] = {401: 'authentication-required', 403: 'permission-denied',
+                    404: 'unsupported-or-hidden', 405: 'method-unsupported'}.get(error.status, 'probe-failed')
+        return {'account_list': True, 'resources': resources, 'writes': 'not probed',
+                'native_cpm': 'requires an installed platform', 'session_recording': 'provided by PSM'}
 
     def account(self, account_id):
         result = self.request('GET', self.account_path(account_id))
@@ -93,3 +106,57 @@ class Vault:
         identifier = self.account_path(request_id).rsplit('/', 1)[1]
         self.request('POST', '/IncomingRequests/' + identifier + '/' + decision, {'Reason': reason})
         return {'request_id': request_id, 'decision': decision, 'status': 'accepted-by-PVWA'}
+
+    def native_cpm(self, account_id, action, safe, platform):
+        if action not in ('Verify', 'Change', 'Reconcile') or not safe or not platform:
+            raise ValueError('Explicit native CPM action and scope required')
+        account = self.account(account_id)
+        if account.get('safeName') != safe or account.get('platformId') != platform:
+            raise ValueError('Account is outside the approved CPM scope')
+        if account.get('platformAccountProperties', {}).get('TencentSecretId'):
+            raise ValueError('CAM key pairs require staged rotation, not guest password CPM actions')
+        payload = {'changeImmediately': True} if action == 'Change' else None
+        self.request('POST', self.account_path(account_id) + '/' + action, payload)
+        return {'account_id': account_id, 'action': action, 'status': 'submitted-to-CPM',
+                'completion': 'Check account secretManagement status; submission is not success'}
+
+    def account_status(self, account_id):
+        account = self.account(account_id)
+        management = account.get('secretManagement', {})
+        # Deliberately exclude extended status/error text, which is vendor/plugin controlled.
+        return {'account_id': account_id, 'safe': account.get('safeName'), 'platform': account.get('platformId'),
+                'management': {k: management[k] for k in ('automaticManagementEnabled', 'status', 'lastModifiedTime', 'lastReconciledTime') if k in management}}
+
+    def connect(self, account_id, component, reason, ticket_id=None, ticket_system=None):
+        self.account_path(account_id)
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', component) or not isinstance(reason, str) or not reason.strip() or len(reason) > 1024:
+            raise ValueError('Explicit component and bounded reason required')
+        payload = {'ConnectionComponent': component, 'reason': reason}
+        if bool(ticket_id) != bool(ticket_system):
+            raise ValueError('Supply ticket ID and system together')
+        if ticket_id:
+            if len(ticket_id) > 256 or len(ticket_system) > 256:
+                raise ValueError('Ticket fields exceed size bounds')
+            payload.update(TicketId=ticket_id, TicketingSystemName=ticket_system)
+        result = self.request('POST', self.account_path(account_id) + '/PSMConnect', payload)
+        if not isinstance(result, (dict, str)) or not result:
+            raise VaultError('Unsupported native PSM response')
+        return result
+
+    def find_rotation_accounts(self, operation):
+        if not re.fullmatch(r'[a-f0-9]{32}', operation):
+            raise ValueError('Invalid rotation operation')
+        name = 'tc-rotation-' + operation
+        result = self.request('GET', '/Accounts?search=' + name + '&limit=1000')
+        if not isinstance(result, dict) or not isinstance(result.get('value'), list):
+            raise VaultError('Unsupported account search response')
+        if result.get('count', len(result['value'])) > len(result['value']):
+            raise VaultError('Incomplete recovery search; inspect PVWA inventory')
+        return [a for a in result['value'] if a.get('name') == name]
+
+    def recording(self, recording_id, section='details'):
+        suffixes = {'details':'', 'activities':'/activities', 'properties':'/properties', 'valid':'/valid', 'play':'/Play'}
+        if section not in suffixes:
+            raise ValueError('Unsupported recording operation')
+        identifier = self.account_path(recording_id).rsplit('/', 1)[1]
+        return self.request('GET', '/Recordings/' + identifier + suffixes[section])

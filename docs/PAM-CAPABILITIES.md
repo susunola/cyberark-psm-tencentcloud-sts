@@ -2,21 +2,23 @@
 
 **English** | [简体中文](PAM-CAPABILITIES.zh-CN.md)
 
-0.3.0 adds an administrative toolkit alongside the console bridge. Run it from a protected administrative workstation, not from the PSM browser or its service account. It uses public Tencent SDK APIs and PVWA REST; no CPM SDK is required. No CyberArk version has been certified. Prefer the modern `/PasswordVault/API` account API family; legacy-only installations need an adapter. Unsupported APIs or insufficient permissions fail closed. `capabilities` checks only account listing, not write permissions or every feature.
+0.3.0 adds an administrative toolkit alongside the console bridge. Run it from a protected administrative workstation, not from the PSM browser or its service account. It uses public Tencent SDK APIs and PVWA REST; no CPM SDK is required. No CyberArk version has been certified. Prefer the modern `/PasswordVault/API` account API family; legacy-only installations need an adapter. Unsupported APIs or insufficient permissions fail closed. `capabilities` probes account/session/recording/request read endpoints, not write permissions or installed components.
 
 | Capability | Delivery | Boundary |
 |---|---|---|
 | Console federation | Bridge, caller/role restrictions, short-lived STS | Mainland Tencent role callback; live PSM acceptance pending |
-| Key lifecycle | Verify, prepare replacement, finalize, restore old | External workflow; not a native CPM plug-in or scheduled automatic rotation |
+| Key lifecycle | Verify, prepare replacement, finalize, restore old | External workflow; not a native CPM plug-in; scheduled preparation requires tested cutover |
 | Discovery | CAM users/key metadata, paginated regional CVM inventory | Explicit authorized regions; no passwords discovered |
 | Onboarding | PVWA account creation and CVM proposals | Existing Safe/platform/custom properties required |
-| SSH/RDP | Guest account proposals use PSM-SSH/PSM-RDP | Existing native components and valid guest credentials required |
+| SSH/RDP | Guest proposals and native PSMConnect invocation | Existing native components and valid guest credentials required |
 | Approval | Create connection requests; list requests; individual confirm/reject | Native dual-control, reason/ticket policies and approver permissions remain authoritative |
 | Session administration | List, suspend, resume, terminate | Authorized operator; endpoint support depends on PVWA/PSM version |
-| Recording | Recording metadata listing | PSM produces and retains recordings; this tool does not record or export playback |
+| Recording | Metadata/activity/validity queries and protected playback response | PSM produces and retains recordings; this tool does not record or export video |
 | Vault authorization, MFA, Safe policies, credential checkout | Existing PAM controls | Configure in PAM; no replacement or bypass is supplied |
-| CPM reconciliation, CVM password rotation | Native guest platforms / external key reactivation | Key restoration is not password reconciliation or recovery of deleted keys |
-| HA / disaster recovery / analytics | Deployment and native PAM operations | Bridge tokens are local; sticky routing required; no distributed token store |
+| CPM reconciliation, CVM password rotation | Scoped native guest CPM task submission / external key reactivation | Key restoration is not password reconciliation or recovery of deleted keys |
+| HA / disaster recovery / analytics | Deployment and native PAM operations | Local tokens by default; optional shared Redis with documented failover boundaries |
+
+0.4.0 adds native CPM/PSM/recording operations, recovery, one-shot maintenance and optional Redis tokens. See [operations guide](OPERATIONS.md).
 
 ## Authentication and permissions
 
