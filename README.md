@@ -30,7 +30,7 @@ sequenceDiagram
     IIS->>Bridge: Loopback request with trusted identity/key
     Bridge-->>PSM: Form and identity-bound single-use CSRF
     PSM->>IIS: POST injected SecretId, SecretKey, profile and CSRF
-    IIS->>Bridge: Overwrite client headers; forward authenticated POST
+    IIS->>Bridge: Overwrite client headers and forward authenticated POST
     Bridge->>Bridge: Validate identity, CSRF and caller/profile binding
     Bridge->>STS: AssumeRole using dedicated caller credentials
     STS-->>Bridge: Temporary role credentials
@@ -39,7 +39,7 @@ sequenceDiagram
     PSM->>Login: Submit signed temporary login URL
     Login-->>PSM: Establish cloud session and redirect
     PSM->>Console: Access console with role permissions
-    Note over PSM,Console: Native PSM records session; closing PSM does not revoke cloud tokens
+    Note over PSM,Console: Native PSM records session. Closing PSM does not revoke cloud tokens
 ```
 
 ## Deployment architecture
