@@ -13,8 +13,9 @@ This package includes a runnable bridge and unit tests. It is not a platform ZIP
 
 ## Delivery status and operations
 
-Version 0.2.2 includes strict configuration validation, dedicated caller-to-role binding, Windows install/uninstall scripts, an IIS proxy template, safe audit correlation, CI, a reproducible source archive and SHA256 manifest. Original code uses the MIT license; maintainer: **susunola**.
+Version 0.3.0 includes strict configuration validation, dedicated caller-to-role binding, Windows install/uninstall scripts, an IIS proxy template, safe audit correlation, CI, a reproducible source archive and SHA256 manifest. Original code uses the MIT license; maintainer: **susunola**.
 
+- [PAM capabilities, lifecycle CLI and compatibility boundaries](docs/PAM-CAPABILITIES.md)
 - [Deployment, upgrade, rollback and troubleshooting](docs/DEPLOYMENT.md)
 - [Acceptance record and release gates](docs/ACCEPTANCE.md)
 - [Marketplace submission draft](docs/MARKETPLACE-SUBMISSION.md)
@@ -25,6 +26,8 @@ Version 0.2.2 also binds form tokens to proxy identities, uses monotonic expirat
 Run `python scripts/check_config.py settings.json` before deployment. Use the install script documented in the deployment guide; Windows runtime and real PSM/cloud acceptance remain pending. Each caller SecretId can belong to only one profile; use distinct callers for distinct privilege tiers.
 
 Version 0.2.2 adds actual loopback HTTP integration tests against Waitress (cloud calls remain mocked), strict JSON loading including duplicate-key rejection, and sanitized startup failures. GitHub Actions CI is enabled for Windows Server 2025 and Ubuntu 24.04 with Python 3.11–3.13. The workflow pins Actions to specific commits. A matching template is included in `deployment/ci-workflow.yml.template`.
+
+Version 0.3.0 adds `scripts/pamctl.py`: CAM/CVM discovery, guest onboarding proposals, PVWA onboarding and approval/session interfaces, and staged sub-user key rotation. These are administrative workflows, not a certified native CPM package. See the capability guide for prerequisites and commands.
 
 ## Files
 
@@ -42,7 +45,7 @@ Version 0.2.2 adds actual loopback HTTP integration tests against Waitress (clou
 
 1. Create a dedicated CAM caller sub-user with API keys. Store its SecretId in the CyberArk account property `TencentSecretId` and its SecretKey in the Vault password field. Do not use root account keys.
 2. Create an account-trusted target role with console login enabled. Configure its trust relationship to permit the intended caller, and grant the caller `sts:AssumeRole` permission for that role. Both sides must permit the operation.
-3. Attach the required business permissions to the role; start acceptance testing with a read-only role. The bridge does not provision users/roles or rotate keys. Configure CPM separately for long-term key rotation and update the caller allowlist when keys change.
+3. Attach the required business permissions to the role; start acceptance testing with a read-only role. The bridge does not provision users/roles. The separate administrative toolkit supports staged key rotation; configure native CPM separately if required, and update caller allowlists during cutover.
 4. Set the role ARN, allowed SecretIds, and destination in `settings.json`. The default duration is 300 seconds, following Tencent Cloud role login guidance. Verify that the current STS API accepts this duration in staging.
 
 ## Windows PSM deployment

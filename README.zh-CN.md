@@ -8,8 +8,9 @@
 
 ## 交付状态与运维
 
-0.2.2 已补充严格配置校验、调用密钥与角色独占绑定、Windows 安装/卸载脚本、IIS 代理模板、安全审计关联、CI、可重现源码包与 SHA256。原创代码采用 MIT 许可，维护者为 **susunola**。
+0.3.0 已补充严格配置校验、调用密钥与角色独占绑定、Windows 安装/卸载脚本、IIS 代理模板、安全审计关联、CI、可重现源码包与 SHA256。原创代码采用 MIT 许可，维护者为 **susunola**。
 
+- [PAM 能力、生命周期工具与兼容性边界](docs/PAM-CAPABILITIES.zh-CN.md)
 - [部署、升级、回滚和排错](docs/DEPLOYMENT.zh-CN.md)
 - [验收记录与发布门槛](docs/ACCEPTANCE.zh-CN.md)
 - [Marketplace 提交草稿（英文）](docs/MARKETPLACE-SUBMISSION.md)
@@ -20,6 +21,8 @@
 部署前执行 `python scripts/check_config.py settings.json`。每个 SecretId 只能属于一个角色配置；不同权限等级使用不同调用主体。Windows 运行与真实 PSM/腾讯云验收仍待完成。
 
 0.2.2 增加了真实环回 HTTP/Waitress 集成测试（云端调用仍使用模拟）、重复 JSON 键拒绝和启动错误脱敏。GitHub Actions CI 已启用，覆盖 Windows Server 2025、Ubuntu 24.04 的 Python 3.11–3.13。Actions 固定到具体提交，模板同步保存在 `deployment/ci-workflow.yml.template`。
+
+0.3.0 增加 `scripts/pamctl.py`：CAM/CVM 发现、客户机纳管规划、PVWA 纳管与审批/会话接口、子用户密钥两阶段轮换。这些是独立管理流程，尚未认证为原生 CPM 包；环境要求和命令见能力说明。
 
 ## 文件
 
@@ -35,7 +38,7 @@
 
 1. 创建专用 CAM 调用子用户，为其开通 API 密钥。将 SecretId 保存到 CyberArk 账号属性 `TencentSecretId`，SecretKey 保存到 Vault 密码字段。不要使用主账号密钥。
 2. 创建角色载体为账号的目标角色，并允许其登录控制台。配置角色信任关系，允许指定调用主体扮演；同时给调用子用户授予作用于该角色的 `sts:AssumeRole` 权限。信任关系与调用权限两边都必须生效。
-3. 给目标角色绑定业务所需权限，先用只读角色验收。本包不创建用户、角色或广泛的管理权限，也不实现密钥轮换；长期密钥轮换需独立配置 CPM 并同步角色白名单。
+3. 给目标角色绑定业务所需权限，先用只读角色验收。桥接服务不创建用户、角色或广泛的管理权限。独立管理工具提供两阶段密钥轮换；原生 CPM 按需另行配置，切换时同步角色白名单。
 4. 配置 `settings.json` 中的角色 ARN、允许的 SecretId 和目标页面。默认 300 秒，依照腾讯云角色免密登录文档的建议；在测试环境确认当前 STS 接口接受这个时长。
 
 ## 桥接服务部署到 Windows PSM

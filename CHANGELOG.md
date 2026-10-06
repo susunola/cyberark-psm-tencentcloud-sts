@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-10-06
+
+- Add administrative PVWA REST adapters for account onboarding, access requests, explicit approval decisions, session controls and recording metadata.
+- Add CAM/CVM discovery and credential-free SSH/RDP onboarding proposals.
+- Add sub-user key verification, staged key rotation, explicit role-tested cutover and old-key reactivation. Preserve both keys after uncertain writes.
+- Keep mutations opt-in; require HTTPS, existing PVWA authorization and independent CAM management credentials.
+- Include lifecycle modules and their mock tests in reproducible source distributions; document compatibility boundaries in English and Chinese.
+- Native CPM packaging, target-version platform imports, real PSM recording and live cloud acceptance remain unverified.
+
 ## 0.2.2 — 2026-10-06
 
 - Add real loopback HTTP tests against the shared Waitress runtime configuration.

@@ -37,3 +37,7 @@ The local suite includes real loopback HTTP requests to Waitress, with mocked ST
 ## Release gate
 
 Production support and AWS-connector quality equivalence cannot be claimed until the environment rows pass and documented version coverage exists. Unit tests and source packaging are necessary but not sufficient.
+
+## Administrative toolkit (0.3.0)
+
+Offline tests cover lifecycle retention, uncertain writes, scope/identity checks, role failures, explicit write guards, REST request shapes and CVM plans. API calls are mocked. Live CAM rotation, PVWA onboarding/approval/session controls and guest SSH/RDP require separate target-environment acceptance. See [capability boundaries](PAM-CAPABILITIES.md).

@@ -20,7 +20,7 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -r requirements.lock.txt
       - run: python -m unittest discover -s tests -v
-      - run: python -m compileall -q app.py configuration.py federation.py security.py runtime.py version.py scripts
+      - run: python -m compileall -q app.py configuration.py federation.py security.py runtime.py version.py scripts pam
       - name: Parse PowerShell deployment scripts
         if: runner.os == 'Windows'
         shell: pwsh

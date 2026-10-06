@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--out', type=Path, required=True)
 args = parser.parse_args()
 files = [ROOT / name for name in FILES]
-for folder in ('scripts', 'deployment', 'docs', 'tests'):
+for folder in ('scripts', 'deployment', 'docs', 'tests', 'pam'):
     files.extend(p for p in (ROOT / folder).rglob('*') if p.is_file() and p.suffix in ('.py', '.ps1', '.md', '.template'))
 args.out.mkdir(parents=True, exist_ok=True)
 archive = args.out / f'psm-tencentcloud-sts-{VERSION}-source.zip'
