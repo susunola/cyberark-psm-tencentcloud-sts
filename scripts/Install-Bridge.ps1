@@ -23,7 +23,7 @@ try {
     New-Item -ItemType Directory -Path $InstallDir | Out-Null
     # Dedicated installation directory: administrators and SYSTEM only initially.
     Invoke-Checked -Exe 'icacls.exe' -Arguments @($InstallDir, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F')
-    foreach ($Name in @('app.py','federation.py','configuration.py','security.py','version.py','requirements.lock.txt')) {
+    foreach ($Name in @('app.py','federation.py','configuration.py','security.py','runtime.py','version.py','requirements.lock.txt')) {
         Copy-Item -LiteralPath (Join-Path $SourceDir $Name) -Destination $InstallDir
     }
     Copy-Item -LiteralPath $SettingsFile -Destination (Join-Path $InstallDir 'settings.json')
@@ -66,8 +66,8 @@ try {
     $WebConfig = Get-Content -Raw -LiteralPath (Join-Path $SourceDir 'deployment\web.config.template')
     $WebConfig = $WebConfig.Replace('REPLACE_WITH_PRIVATE_PROXY_KEY', $ProxyKey)
     Set-Content -LiteralPath (Join-Path $InstallDir 'web.config.generated') -Value $WebConfig -Encoding UTF8
-    Invoke-Checked -Exe (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') -Arguments @('install')
     $Installed = $true
+    Invoke-Checked -Exe (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') -Arguments @('install')
     Invoke-Checked -Exe (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') -Arguments @('start')
     $Ready = $false
     for ($Attempt = 0; $Attempt -lt 15; $Attempt++) {
@@ -84,8 +84,12 @@ try {
     Write-Output 'Bridge installed. Configure the authenticated HTTPS proxy before connecting PSM.'
 } catch {
     if ($Installed) {
-        & (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') stop 2>$null
-        & (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') uninstall 2>$null
+        try {
+            if (Get-Service 'PSMTencentCloudSTS' -ErrorAction SilentlyContinue) {
+                & (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') stop 2>$null
+                & (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') uninstall 2>$null
+            }
+        } catch { }
     }
     # Preserve ACL-protected files for diagnosis; do not automatically delete user configuration.
     throw 'Installation failed. Inspect restricted service logs and installation files; no secrets are printed.'

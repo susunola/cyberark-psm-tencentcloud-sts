@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2 — 2026-10-06
+
+- Add real loopback HTTP tests against the shared Waitress runtime configuration.
+- Reject duplicate JSON configuration keys and oversized files; support UTF-8 BOM from Windows editors.
+- Fail startup with sanitized configuration diagnostics.
+- Clean up partially installed services after installation failures.
+- Include a CI workflow template in source distributions while workflow upload authorization is pending.
+
 ## 0.2.1 — 2026-10-06
 
 - Bind single-use form tokens to authenticated proxy identities and use monotonic expiration.

@@ -2,7 +2,6 @@
 import hmac
 import json
 import os
-from pathlib import Path
 import re
 import threading
 import logging
@@ -11,7 +10,7 @@ import hashlib
 
 from flask import Flask, abort, g, redirect, render_template_string, request, session
 from federation import assume_role, login_url
-from configuration import validate_settings
+from configuration import load_settings, validate_settings
 from security import TokenStore
 from version import VERSION
 
@@ -60,6 +59,9 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role):
         if not request.headers.get('X-PSM-Authenticated-User'):
             abort(403)
         if len(request.headers['X-PSM-Authenticated-User']) > 256:
+            abort(403)
+        identity = request.headers['X-PSM-Authenticated-User']
+        if not identity.strip() or any(ord(c) < 32 or ord(c) == 127 for c in identity):
             abort(403)
 
     @app.after_request
@@ -130,12 +132,14 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role):
 
 
 def main():
-    from waitress import serve
+    from runtime import make_server
     logging.basicConfig(level=logging.INFO, format='%(message)s')
-    settings = json.loads(Path(os.environ['PSM_TC_CONFIG']).read_text(encoding='utf-8'))
-    app = create_app(settings, proxy_key=os.environ['PSM_TC_PROXY_KEY'], session_key=os.environ['PSM_TC_SESSION_KEY'])
-    serve(app, host='127.0.0.1', port=8765, threads=4, connection_limit=100,
-          max_request_body_size=8192, max_request_header_size=16384, channel_timeout=30)
+    try:
+        settings = load_settings(os.environ['PSM_TC_CONFIG'])
+        app = create_app(settings, proxy_key=os.environ['PSM_TC_PROXY_KEY'], session_key=os.environ['PSM_TC_SESSION_KEY'])
+    except (OSError, KeyError, ValueError):
+        raise SystemExit('Bridge startup configuration invalid. Check service environment and settings.') from None
+    make_server(app).run()
 
 
 if __name__ == '__main__':

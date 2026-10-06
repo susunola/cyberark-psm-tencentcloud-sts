@@ -8,16 +8,18 @@
 
 ## 交付状态与运维
 
-0.2.1 已补充严格配置校验、调用密钥与角色独占绑定、Windows 安装/卸载脚本、IIS 代理模板、安全审计关联、CI、可重现源码包与 SHA256。原创代码采用 MIT 许可，维护者为 **susunola**。
+0.2.2 已补充严格配置校验、调用密钥与角色独占绑定、Windows 安装/卸载脚本、IIS 代理模板、安全审计关联、CI、可重现源码包与 SHA256。原创代码采用 MIT 许可，维护者为 **susunola**。
 
 - [部署、升级、回滚和排错](docs/DEPLOYMENT.zh-CN.md)
 - [验收记录与发布门槛](docs/ACCEPTANCE.zh-CN.md)
 - [Marketplace 提交草稿（英文）](docs/MARKETPLACE-SUBMISSION.md)
 - [安全策略](SECURITY.md) · [贡献说明](CONTRIBUTING.md) · [变更记录](CHANGELOG.md)
 
-0.2.1 还将表单令牌绑定代理身份、使用单调时钟判断过期、限制 STS 并发为两个请求；超载返回 503/Retry-After，等待后需发起新连接。安装器会验证服务就绪。
+0.2.2 还将表单令牌绑定代理身份、使用单调时钟判断过期、限制 STS 并发为两个请求；超载返回 503/Retry-After，等待后需发起新连接。安装器会验证服务就绪。
 
 部署前执行 `python scripts/check_config.py settings.json`。每个 SecretId 只能属于一个角色配置；不同权限等级使用不同调用主体。Windows 运行与真实 PSM/腾讯云验收仍待完成。
+
+0.2.2 增加了真实环回 HTTP/Waitress 集成测试（云端调用仍使用模拟）、重复 JSON 键拒绝和启动错误脱敏。CI 模板在 `deployment/ci-workflow.yml.template`，启用仍需 GitHub workflow 权限。
 
 ## 文件
 

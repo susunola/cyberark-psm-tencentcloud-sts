@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from version import VERSION
 
-FILES = ['app.py', 'configuration.py', 'federation.py', 'security.py', 'version.py', 'README.md', 'README.zh-CN.md',
+FILES = ['app.py', 'configuration.py', 'federation.py', 'security.py', 'runtime.py', 'version.py', 'README.md', 'README.zh-CN.md',
          'requirements.in', 'requirements.lock.txt', 'WebFormFields.template.txt',
          'settings.example.json', 'cam-assume-policy.example.json', 'SECURITY.md',
          'CONTRIBUTING.md', 'CHANGELOG.md', 'NOTICE.md', 'LICENSE']

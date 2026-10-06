@@ -3,7 +3,7 @@
 ## Product metadata
 
 - Title: Tencent Cloud STS Console Connector for CyberArk PSM
-- Source milestone: 0.2.1
+- Source milestone: 0.2.2
 - Maintainer/contributor: susunola
 - Category: Privileged Session Management / Cloud Console
 - Integration target: CyberArk PAM PSM Web framework; Tencent Cloud mainland CAM/STS

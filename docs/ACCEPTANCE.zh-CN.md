@@ -2,7 +2,7 @@
 
 [English](ACCEPTANCE.md)
 
-离线测试使用模拟 STS；CI 可以检查 Windows/Linux Python 兼容性和 PowerShell 语法，不能证明真实 PSM 或腾讯云会话可用。
+测试包含真实环回 HTTP/Waitress 请求，STS 使用模拟；TLS/IIS 和云端端点仍待验证。CI 可以检查 Windows/Linux Python 兼容性和 PowerShell 语法，不能证明真实 PSM 或腾讯云会话可用。
 
 | 项目 | 需保留证据 | 状态 |
 |---|---|---|

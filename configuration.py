@@ -1,7 +1,24 @@
 """Strict startup validation with errors that never echo configuration secrets."""
 import copy
 import re
+import json
+from pathlib import Path
 from federation import validate_destination
+
+
+def load_settings(path):
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('Duplicate configuration field')
+            result[key] = value
+        return result
+    with Path(path).open('rb') as source:
+        raw = source.read(1024 * 1024 + 1)
+    if len(raw) > 1024 * 1024:
+        raise ValueError('Configuration exceeds size limit')
+    return validate_settings(json.loads(raw.decode('utf-8-sig'), object_pairs_hook=unique_object))
 
 
 def validate_settings(settings):

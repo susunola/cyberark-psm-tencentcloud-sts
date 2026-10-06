@@ -4,7 +4,7 @@
 
 ## Evidence status
 
-The local offline suite is executed with mocked STS calls. Windows CI can validate Python compatibility and parse PowerShell; it cannot establish real PSM/browser/cloud behavior. Record actual environment results below. Do not convert a pending row into a pass without reproducible evidence.
+The local suite includes real loopback HTTP requests to Waitress, with mocked STS calls. TLS/IIS and cloud endpoints remain untested. Windows CI can validate Python compatibility and parse PowerShell; it cannot establish real PSM/browser/cloud behavior. Record actual environment results below. Do not convert a pending row into a pass without reproducible evidence.
 
 | Area | Required evidence | Status |
 |---|---|---|
