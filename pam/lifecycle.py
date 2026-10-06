@@ -1,7 +1,7 @@
 """Two-stage rotation; old credentials stay active until explicit cutover confirmation."""
 from dataclasses import dataclass, asdict
 import re
-from federation import FederationError, assume_role
+from federation import assume_role
 from pam.cloud import uin
 
 
@@ -19,8 +19,42 @@ class Ticket:
     new_secret_id: str
     profile: str
 
+    def __post_init__(self):
+        if not isinstance(self.operation, str) or not re.fullmatch(r'[a-f0-9]{32}', self.operation):
+            raise ValueError('Invalid ticket operation')
+        object.__setattr__(self, 'target_uin', str(uin(self.target_uin)))
+        for field in ('old_account', 'new_account'):
+            value = getattr(self, field)
+            if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', value):
+                raise ValueError('Invalid ticket account')
+        for field in ('old_secret_id', 'new_secret_id'):
+            validate_identifier(getattr(self, field))
+        if not isinstance(self.profile, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', self.profile):
+            raise ValueError('Invalid ticket profile')
+        if self.old_account == self.new_account or self.old_secret_id == self.new_secret_id:
+            raise ValueError('Ticket replacement must differ')
+
     def public(self):
         return asdict(self)
+
+
+def validate_identifier(value):
+    if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_-]{2,256}', value):
+        raise ValueError('Invalid credential identifier')
+
+
+def validate_source(account, profile):
+    if not isinstance(profile, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', profile):
+        raise LifecycleError('Invalid source profile')
+    for field in ('address', 'userName', 'platformId', 'safeName'):
+        value = account.get(field)
+        if not isinstance(value, str) or not value.strip() or len(value) > 1024 or any(ord(c) < 32 for c in value):
+            raise LifecycleError('Incomplete source account scope')
+    props = account.get('platformAccountProperties', {})
+    if not isinstance(props, dict) or props.get('TencentRoleProfile') != profile:
+        raise LifecycleError('Account/profile binding mismatch')
+    validate_identifier(props.get('TencentSecretId'))
+    return props
 
 
 def prepare(cloud, vault, old_account_id, target, profile, operation):
@@ -28,7 +62,7 @@ def prepare(cloud, vault, old_account_id, target, profile, operation):
         raise ValueError('Use a UUID hex operation ID')
     target = str(uin(target))
     old = vault.account(old_account_id)
-    props = old.get('platformAccountProperties', {})
+    props = validate_source(old, profile)
     old_sid = props.get('TencentSecretId')
     if not old_sid or props.get('TencentRoleProfile') != profile:
         raise LifecycleError('Account/profile binding mismatch')
@@ -44,6 +78,9 @@ def prepare(cloud, vault, old_account_id, target, profile, operation):
     # No automatic retry after creation or Vault write: uncertain outcomes must be reconciled.
     new_sid, new_key = cloud.create_key(target, operation)
     try:
+        validate_identifier(new_sid)
+        if new_sid == old_sid or not isinstance(new_key, str) or not 1 <= len(new_key) <= 512:
+            raise LifecycleError('Invalid replacement pair; reconcile cloud inventory')
         cloud.verify(new_sid, new_key, target)
         payload = {'name': 'tc-rotation-' + operation, 'address': old['address'],
             'userName': old['userName'], 'platformId': old['platformId'], 'safeName': old['safeName'],
@@ -86,8 +123,15 @@ def finalize(cloud, vault, ticket, settings, *, confirmed_cutover=False, role_ve
                       profile['duration_seconds'], profile['region'])
     finally:
         secret = None
-    if states[ticket.old_secret_id] == 'Active':
+    # Reduce the interval between the verified role call and credential retirement.
+    latest = {k['id']: k['status'] for k in cloud.keys(ticket.target_uin)}
+    if latest.get(ticket.new_secret_id) != 'Active' or latest.get(ticket.old_secret_id) not in ('Active', 'Inactive'):
+        raise LifecycleError('Key state changed during verification; inspect inventory')
+    if latest[ticket.old_secret_id] == 'Active':
         cloud.set_key_status(ticket.target_uin, ticket.old_secret_id, 'Inactive')
+        confirmed = {k['id']: k['status'] for k in cloud.keys(ticket.target_uin)}
+        if confirmed.get(ticket.new_secret_id) != 'Active' or confirmed.get(ticket.old_secret_id) != 'Inactive':
+            raise LifecycleError('Retirement outcome uncertain; reconcile inventory without automatic retry')
     return {'operation': ticket.operation, 'status': 'old-key-inactive', 'new_account': ticket.new_account}
 
 

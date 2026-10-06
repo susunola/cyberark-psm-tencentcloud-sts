@@ -13,6 +13,7 @@ from pam.vault import Vault
 from pam.lifecycle import Ticket, prepare, finalize, restore_old, recover_ticket
 from pam.planning import cvm_plan
 from pam.files import read_json, private_output, save_json
+from pam.onboarding import validate_account
 
 
 def vault():
@@ -117,17 +118,7 @@ def main():
             caller = Cloud(credential['secret_id'], credential['secret_key'])
             result = {'verified': caller.verify(credential['secret_id'], credential['secret_key'], args.target_uin)}
         elif args.command == 'onboard':
-            payload = read_json(stream=sys.stdin, limit=65536)
-            if isinstance(payload, dict):
-                # Local proposal metadata is not a PVWA account property.
-                component = payload.pop('connection_component', None)
-                if component not in (None, 'PSM-RDP', 'PSM-SSH'):
-                    raise ValueError('Unknown proposal component')
-            allowed = {'name', 'address', 'userName', 'platformId', 'safeName', 'secretType', 'secret', 'platformAccountProperties', 'secretManagement'}
-            if not isinstance(payload, dict) or set(payload) - allowed or payload.get('safeName') != args.safe or payload.get('platformId') != args.platform:
-                raise ValueError('Onboarding payload outside approved Safe/platform')
-            if not payload.get('secret') or payload.get('secretType') != 'password':
-                raise ValueError('Explicit credential required; no automatic password generation')
+            payload = validate_account(read_json(stream=sys.stdin, limit=65536), args.safe, args.platform)
             result = {'account_id': vault().create(payload)}
         elif args.command == 'prepare':
             # Reserve a journal path BEFORE cloud mutation; never overwrite a previous attempt.

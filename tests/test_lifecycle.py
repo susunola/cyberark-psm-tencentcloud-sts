@@ -22,6 +22,11 @@ class LifecycleTests(unittest.TestCase):
         self.vault.account.return_value = self.old
         self.vault.create.return_value = 'new-account'
         self.operation = 'a'*32
+        def update_status(target, secret_id, status):
+            for key in self.cloud.keys.return_value:
+                if key['id'] == secret_id:
+                    key['status'] = status
+        self.cloud.set_key_status.side_effect = update_status
 
     def prepared(self):
         ticket = prepare(self.cloud,self.vault,'old-account','123','readonly',self.operation)
@@ -47,6 +52,33 @@ class LifecycleTests(unittest.TestCase):
         with self.assertRaises(LifecycleError):
             prepare(self.cloud, self.vault, 'old-account', '123', 'readonly', self.operation)
         self.cloud.create_key.assert_not_called()
+
+    def test_incomplete_old_account_never_creates_replacement(self):
+        del self.old['address']
+        with self.assertRaises(LifecycleError):
+            prepare(self.cloud, self.vault, 'old-account', '123', 'readonly', self.operation)
+        self.cloud.create_key.assert_not_called()
+
+    def test_invalid_replacement_pair_is_not_saved(self):
+        self.cloud.create_key.return_value = ('old-id', 'FAKE-SECRET')
+        with self.assertRaises(LifecycleError):
+            prepare(self.cloud, self.vault, 'old-account', '123', 'readonly', self.operation)
+        self.vault.create.assert_not_called(); self.cloud.set_key_status.assert_not_called()
+
+    def test_new_key_disabled_during_role_verification_keeps_old(self):
+        ticket = self.prepared()
+        def concurrent_change(*args):
+            self.cloud.keys.return_value[1]['status'] = 'Inactive'
+        with self.assertRaises(LifecycleError):
+            finalize(self.cloud, self.vault, ticket, self.settings, confirmed_cutover=True, role_verifier=concurrent_change)
+        self.cloud.set_key_status.assert_not_called()
+
+    def test_disable_ack_without_readback_is_not_success(self):
+        ticket = self.prepared()
+        self.cloud.set_key_status.side_effect = None
+        with self.assertRaises(LifecycleError):
+            finalize(self.cloud, self.vault, ticket, self.settings, confirmed_cutover=True, role_verifier=MagicMock())
+        self.cloud.set_key_status.assert_called_once()
 
     def test_unknown_old_key_state_never_reports_cutover(self):
         ticket = self.prepared()

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1 — 2026-10-06
+
+- Validate every maintenance job before remote actions, canonicalize UINs and reject case-insensitive/Windows-reserved filename collisions.
+- Validate source account scope before creating cloud keys; validate recovery tickets and replacement pairs.
+- Recheck key states after role verification and confirm cloud retirement before reporting success; uncertain outcomes never retry automatically.
+- Validate complete onboarding payloads, credential types, CAM bindings and management flags before writes.
+- Preflight service XML with DTD disabled; replace it atomically under an exclusive lock, preserve the original backup and never overwrite existing shared secrets.
+- Add lifecycle/input regression tests and real PowerShell file/XML integration tests; target service execution still requires environment acceptance.
+
 ## 0.4.0 — 2026-10-06
 
 - Add scoped native guest CPM Verify/Change/Reconcile submission and sanitized account status.

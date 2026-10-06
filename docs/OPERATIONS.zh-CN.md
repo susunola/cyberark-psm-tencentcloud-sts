@@ -55,7 +55,7 @@ python scripts/run_maintenance.py --jobs maintenance.json --settings settings.js
 .\scripts\Configure-SharedTokens.ps1 -InstallDir C:\PSM-TencentCloud -SharedSettingsFile C:\Protected\shared-secrets.json
 ```
 
-默认不修改。先停止接收新连接，再添加 `-Apply -Restart`：验证 Redis/TLS、以受限 ACL 复制配置、更新 WinSW 服务。CA 文件必须能被 LocalService 读取。旧 XML 备份到受保护安装目录的 `PSMTencentCloudSTS.xml.before-shared`。部分失败时检查服务和配置，必要时恢复备份与原令牌模式。脚本仅完成语法检查，未在目标 PSM 实机执行。
+默认不修改。先停止接收新连接，再添加 `-Apply -Restart`：验证 Redis/TLS、以受限 ACL 复制配置、更新 WinSW 服务。CA 文件必须能被 LocalService 读取。服务 XML 先禁用 DTD 预检，再持有独占更新锁进行原子替换。实际秘密文件与备份不覆盖；崩溃锁需检查后清理。旧 XML 备份到受保护安装目录的 `PSMTencentCloudSTS.xml.before-shared`。部分失败时检查服务和配置，必要时恢复备份与原令牌模式。脚本仅完成语法检查，未在目标 PSM 实机执行。
 
 Lua 使用 Redis 服务端时间，限制共享令牌总容量，并在主节点原子验证身份、过期和消费。只存令牌/身份摘要。Redis 故障返回 503，无本地回退，不自动重试消费结果不确定的请求；带代理认证的 `/healthz` 检测 Redis。更换会话密钥会使待提交表单失效，需重新发起连接。
 
@@ -64,3 +64,7 @@ Lua 使用 Redis 服务端时间，限制共享令牌总容量，并在主节点
 独立 CI 使用真实 Redis 7.2.5 验证跨节点消费、并发重放、服务端过期、容量、摘要存储和跨应用实例提交表单。TLS 参数与故障关闭使用单元测试；CI Redis 为本机明文连接，不能当成生产 TLS 验收。
 
 接口依据：[CyberArk 官方模块](https://github.com/cyberark/epv-api-scripts/tree/main/EPV-API-Common)、[Redis Lua](https://redis.io/docs/latest/develop/programmability/eval-intro/)、[redis-py 生产配置](https://redis.io/docs/latest/develop/clients/redis-py/produsage/)。
+
+## 输入与轮换检查（0.4.1）
+
+任何远端作业开始前，完整检查清单中的 ID、UIN、账户与角色语法，拒绝同一 UIN 的别名及大小写文件名冲突。Safe/平台/角色/白名单仍在各作业使用前动态核验，批量流程不是跨系统事务。纳管要求完整、有长度限制的字符串元数据和字符串凭据；CAM 密钥账户必须显式关闭原生自动管理。票据验证标识及不同的新旧配对。创建云密钥前检查旧账户字段；角色验证后再次检查密钥状态，停用后读取确认。读取确认失败（包括可能的状态一致性延迟）报告结果不确定，需对账，不自动重试。多次检查缩短竞态窗口，但云/Vault 独立操作无法变成原子事务，请串行处理目标变更。

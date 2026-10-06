@@ -3,15 +3,17 @@ from pathlib import Path
 import os
 import re
 import uuid
+import copy
 from federation import assume_role
 from pam.files import private_output, save_json
 from pam.lifecycle import prepare
+from pam.cloud import uin
 
 
 def validate_jobs(configuration):
     if not isinstance(configuration, dict) or set(configuration) != {'jobs'}:
         raise ValueError('Expected maintenance jobs only')
-    jobs = configuration['jobs']
+    jobs = copy.deepcopy(configuration['jobs'])
     if not isinstance(jobs, list) or not 1 <= len(jobs) <= 100:
         raise ValueError('Configure 1..100 jobs')
     identifiers, targets = set(), set()
@@ -20,15 +22,20 @@ def validate_jobs(configuration):
             raise ValueError('Invalid maintenance job fields')
         if not all(isinstance(value, str) and value for value in job.values()):
             raise ValueError('Maintenance fields must be nonempty strings')
-        if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', job['id']) or job['id'] in identifiers:
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', job['id']) or job['id'].casefold() in identifiers or re.fullmatch(r'(?i:CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])', job['id']):
             raise ValueError('Use distinct safe job IDs')
+        job['target_uin'] = str(uin(job['target_uin']))
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', job['account']) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', job['profile']):
+            raise ValueError('Invalid maintenance account/profile')
+        if any(len(job[k]) > 1024 or not job[k].strip() or any(ord(c) < 32 for c in job[k]) for k in ('safe', 'platform')):
+            raise ValueError('Invalid maintenance scope')
         if job['action'] not in ('verify-cam', 'prepare-key'):
             raise ValueError('Maintenance cannot finalize, delete, approve or reset credentials')
         if job['action'] == 'prepare-key' and job['target_uin'] in targets:
             raise ValueError('One preparation per target UIN per run')
         if job['action'] == 'prepare-key':
             targets.add(job['target_uin'])
-        identifiers.add(job['id'])
+        identifiers.add(job['id'].casefold())
     return jobs
 
 
