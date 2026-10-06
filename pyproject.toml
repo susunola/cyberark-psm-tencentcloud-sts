@@ -1,0 +1,22 @@
+[project]
+name = "psm-tc-bridge"
+version = "1.0.0"
+description = "CyberArk PSM bridge for Tencent Cloud STS role console login"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+dependencies = [
+  "Flask>=3.1,<4",
+  "waitress>=3,<4",
+  "tencentcloud-sdk-python-sts>=3,<4",
+]
+
+[project.scripts]
+psm-tc-bridge = "psm_tc_bridge.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["psm_tc_bridge*"]
