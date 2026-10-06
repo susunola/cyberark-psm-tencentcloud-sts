@@ -6,6 +6,17 @@
 
 本包包含可运行的桥接服务和单元测试。它不是直接导入 PVWA 的平台 ZIP；缺少现场 PSM 版本、Web 框架和腾讯云测试账号，尚未完成 Windows、PSM 录屏或腾讯云真实登录验收。
 
+## 交付状态与运维
+
+0.2.0 已补充严格配置校验、调用密钥与角色独占绑定、Windows 安装/卸载脚本、IIS 代理模板、安全审计关联、CI、可重现源码包与 SHA256。原创代码采用 MIT 许可，维护者为 **susunola**。
+
+- [部署、升级、回滚和排错](docs/DEPLOYMENT.zh-CN.md)
+- [验收记录与发布门槛](docs/ACCEPTANCE.zh-CN.md)
+- [Marketplace 提交草稿（英文）](docs/MARKETPLACE-SUBMISSION.md)
+- [安全策略](SECURITY.md) · [贡献说明](CONTRIBUTING.md) · [变更记录](CHANGELOG.md)
+
+部署前执行 `python scripts/check_config.py settings.json`。每个 SecretId 只能属于一个角色配置；不同权限等级使用不同调用主体。Windows 运行与真实 PSM/腾讯云验收仍待完成。
+
 ## 文件
 
 - `federation.py`：官方 SDK 调用 STS、HMAC-SHA256 签名和角色登录链接构造。
@@ -62,7 +73,7 @@ C:\PSM-TencentCloud\venv\Scripts\python.exe C:\PSM-TencentCloud\app.py
 4. 代理密钥所在配置仅允许代理服务和管理员读取；只允许受控主机访问站点。关闭对请求正文、Cookie、响应 Location 和完整登录链接的跟踪；日志中不保留敏感材料。
 5. 直接请求后端、不带代理密钥、未完成代理认证，以及伪造身份头的请求都应被拒绝。正确配置代理是认证边界；仅绑定 localhost 不构成完整鉴权。
 
-本包没有替你修改 IIS、安装 ARR/URL Rewrite、配置证书或创建 Windows 服务，因为这些与现场 PSM 加固和版本相关。完成此段配置后再接入生产。不要开放 Flask debug 模式。
+本包提供 Windows 服务安装脚本和 IIS 重写模板；IIS 认证、ARR/URL Rewrite 安装和证书仍需根据现场 PSM 加固与版本配置。完成此段配置后再接入生产。不要开放 Flask debug 模式。
 
 ## PVWA 平台与连接组件
 

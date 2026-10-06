@@ -13,6 +13,8 @@ class FederationError(Exception):
 
 
 def validate_destination(url):
+    if not isinstance(url, str) or not url or len(url) > 2048:
+        raise FederationError('Invalid console destination')
     try:
         p = urlsplit(url)
         valid = (p.scheme == 'https' and p.hostname == 'console.cloud.tencent.com'

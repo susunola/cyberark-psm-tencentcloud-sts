@@ -11,3 +11,6 @@ settings.json
 *.pfx
 *.zip
 .DS_Store
+dist/
+web.config.generated
+PSMTencentCloudSTS.xml

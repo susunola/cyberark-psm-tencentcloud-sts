@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dedicated IIS site root only. Replace the proxy key and configure allowedServerVariables
+     at server scope. Enable Windows Authentication and disable anonymous authentication
+     at the site in applicationHost.config. Requires ARR proxy and URL Rewrite. -->
+<configuration>
+  <system.webServer>
+    <rewrite>
+      <rules>
+        <rule name="Authenticated Tencent PSM bridge" stopProcessing="true">
+          <match url="^(.*)$" />
+          <conditions>
+            <add input="{REMOTE_USER}" pattern=".+" />
+          </conditions>
+          <serverVariables>
+            <set name="HTTP_X_PSM_BRIDGE_KEY" value="REPLACE_WITH_PRIVATE_PROXY_KEY" />
+            <set name="HTTP_X_PSM_AUTHENTICATED_USER" value="{REMOTE_USER}" />
+          </serverVariables>
+          <action type="Rewrite" url="http://127.0.0.1:8765/{R:1}" appendQueryString="false" />
+        </rule>
+      </rules>
+    </rewrite>
+    <httpErrors existingResponse="PassThrough" />
+  </system.webServer>
+</configuration>

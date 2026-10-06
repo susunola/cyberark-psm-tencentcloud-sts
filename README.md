@@ -11,6 +11,17 @@ PVWA authorization → PSM Web injects Vault credentials → STS AssumeRole
 
 This package includes a runnable bridge and unit tests. It is not a platform ZIP that can be imported directly into PVWA. Windows deployment, PSM recording, and live Tencent Cloud login have not been validated against a target environment.
 
+## Delivery status and operations
+
+Version 0.2.0 includes strict configuration validation, dedicated caller-to-role binding, Windows install/uninstall scripts, an IIS proxy template, safe audit correlation, CI, a reproducible source archive and SHA256 manifest. Original code uses the MIT license; maintainer: **susunola**.
+
+- [Deployment, upgrade, rollback and troubleshooting](docs/DEPLOYMENT.md)
+- [Acceptance record and release gates](docs/ACCEPTANCE.md)
+- [Marketplace submission draft](docs/MARKETPLACE-SUBMISSION.md)
+- [Security policy](SECURITY.md) · [Contribution guide](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+
+Run `python scripts/check_config.py settings.json` before deployment. Use the install script documented in the deployment guide; Windows runtime and real PSM/cloud acceptance remain pending. Each caller SecretId can belong to only one profile; use distinct callers for distinct privilege tiers.
+
 ## Files
 
 | File | Purpose |
@@ -41,7 +52,7 @@ C:\PSM-TencentCloud\venv\Scripts\python.exe -m pip install -r C:\PSM-TencentClou
 
 Copy `settings.example.json` to `settings.json` and enter your environment values. Give the service account read access to code and configuration. Ordinary PSM session accounts must not be able to modify code, role configuration, or service secrets.
 
-Use a Windows service wrapper or your existing service management tooling to manage this process:
+The supplied installer uses an administrator-provided WinSW binary. If using other service tooling, manage this process:
 
 ```text
 C:\PSM-TencentCloud\venv\Scripts\python.exe C:\PSM-TencentCloud\app.py
@@ -69,7 +80,7 @@ The proxy must meet all these requirements:
 4. Restrict proxy key configuration access to administrators and the proxy service, and restrict site access to controlled hosts. Disable tracing of request bodies, cookies, response Location headers, and complete login URLs. Do not retain sensitive material in logs.
 5. Reject direct backend requests, missing proxy keys, unauthenticated requests, and forged identity headers. Correct proxy configuration is the authentication boundary; localhost alone is insufficient.
 
-IIS changes, ARR/URL Rewrite installation, certificates, and Windows service creation are environment-specific deployment steps and are not automated by this package. Complete them before production use. Do not enable Flask debug mode.
+The package provides a Windows service installer and an IIS rewrite template. IIS authentication, ARR/URL Rewrite installation and certificates still require environment-specific configuration. Complete them before production use. Do not enable Flask debug mode.
 
 ## PVWA platform and connection component
 

@@ -1,0 +1,18 @@
+"""Validate a configuration file without contacting Tencent Cloud."""
+import argparse
+import json
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from configuration import validate_settings
+from federation import FederationError
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('config', type=Path)
+args = parser.parse_args()
+try:
+    settings = validate_settings(json.loads(args.config.read_text(encoding='utf-8')))
+except (OSError, ValueError, FederationError):
+    parser.exit(2, 'Configuration invalid. Check required fields, caller bindings, role ARN and destination.\n')
+print(f'Configuration valid: {len(settings["profiles"])} profile(s). No cloud calls performed.')
