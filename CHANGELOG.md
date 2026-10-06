@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1 — 2026-10-06
+
+- Target Tencent Cloud international: sign the international role callback, allow only the international console destination and update CSP.
+- Explicitly use international STS, CAM and CVM API endpoints; add endpoint and mainland-destination rejection regression checks.
+- Add bilingual installation/use manuals and README links, login sequence and deployment architecture diagrams.
+- Correct first-install directory and full-source management/test instructions; document migration and remaining live acceptance.
+
 ## 0.5.0 — 2026-10-06
 
 - Complete public-interface request operations with ticket/time-window fields, request details and explicit request removal.

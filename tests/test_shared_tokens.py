@@ -12,7 +12,7 @@ from app import create_app
 from security import RedisTokenStore, TokenStoreError, configured_token_store, shared_environment
 
 SETTINGS = {'profiles': {'readonly': {'role_arn': 'qcs::cam::uin/123:roleName/ReadOnly',
-    'allowed_secret_ids': ['broker-id'], 'destination': 'https://console.cloud.tencent.com/',
+    'allowed_secret_ids': ['broker-id'], 'destination': 'https://console.tencentcloud.com/',
     'duration_seconds': 300, 'region': 'ap-guangzhou'}}}
 HEADERS = {'X-PSM-Bridge-Key': 'p' * 32, 'X-PSM-Authenticated-User': 'PSMConnect'}
 

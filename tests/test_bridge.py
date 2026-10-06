@@ -18,7 +18,7 @@ class BridgeTests(unittest.TestCase):
             self.calls.append(args)
             return self.creds
         self.settings = {'profiles': {'readonly': dict(role_arn='qcs::cam::uin/123:roleName/ReadOnly',
-            allowed_secret_ids=['broker-id'], destination='https://console.cloud.tencent.com/',
+            allowed_secret_ids=['broker-id'], destination='https://console.tencentcloud.com/',
             duration_seconds=300, region='ap-guangzhou')}}
         self.app = create_app(self.settings, proxy_key='p' * 32, session_key='s' * 32, sts=sts)
         self.client = self.app.test_client()
@@ -34,18 +34,18 @@ class BridgeTests(unittest.TestCase):
         return self.client.post('/connect', data=data, headers=self.headers, base_url='https://bridge.local')
 
     def test_signature_and_encoding(self):
-        url = login_url(self.creds, 'https://console.cloud.tencent.com/cvm?x=1&y=2', now=1700000000, nonce=67439)
+        url = login_url(self.creds, 'https://console.tencentcloud.com/cvm?x=1&y=2', now=1700000000, nonce=67439)
         q = parse_qs(urlsplit(url).query)
-        canonical = 'GETcloud.tencent.com/login/roleAccessCallback?action=roleLogin&nonce=67439&secretId=AKID-TEST&timestamp=1700000000'
+        canonical = 'GETwww.tencentcloud.com/login/roleAccessCallback?action=roleLogin&nonce=67439&secretId=AKID-TEST&timestamp=1700000000'
         expected = base64.b64encode(hmac.new(b'fake-test-secret', canonical.encode(), hashlib.sha256).digest()).decode()
         self.assertEqual(q['signature'], [expected])
         self.assertEqual(q['token'], [self.creds['Token']])
-        self.assertEqual(q['s_url'], ['https://console.cloud.tencent.com/cvm?x=1&y=2'])
+        self.assertEqual(q['s_url'], ['https://console.tencentcloud.com/cvm?x=1&y=2'])
         self.assertNotIn(self.creds['TmpSecretKey'], url)
 
     def test_open_redirect_rejected(self):
-        for u in ['http://console.cloud.tencent.com/', 'https://console.cloud.tencent.com.evil.test/',
-                  'https://evil.test/', 'https://user@console.cloud.tencent.com/', 'https://console.cloud.tencent.com:444/']:
+        for u in ['http://console.tencentcloud.com/', 'https://console.tencentcloud.com.evil.test/',
+                  'https://evil.test/', 'https://user@console.tencentcloud.com/', 'https://console.tencentcloud.com:444/']:
             with self.assertRaises(FederationError):
                 validate_destination(u)
 
@@ -56,7 +56,7 @@ class BridgeTests(unittest.TestCase):
     def test_success(self):
         r = self.post(self.form())
         self.assertEqual(r.status_code, 303)
-        self.assertTrue(r.headers['Location'].startswith('https://cloud.tencent.com/login/roleAccessCallback?'))
+        self.assertTrue(r.headers['Location'].startswith('https://www.tencentcloud.com/login/roleAccessCallback?'))
         self.assertEqual(self.calls[0][2], self.settings['profiles']['readonly']['role_arn'])
         self.assertEqual(self.calls[0][4], 300)
         self.assertEqual(r.headers['Cache-Control'], 'no-store')

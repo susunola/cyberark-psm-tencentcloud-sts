@@ -16,7 +16,7 @@ class LifecycleTests(unittest.TestCase):
         self.cloud.keys.return_value = [{'id':'old-id','status':'Active','description':''}]
         self.cloud.create_key.return_value = ('new-id', 'FAKE-SECRET')
         self.cloud.verify.return_value = True
-        self.old = {'id':'old-account', 'address':'cloud.tencent.com','userName':'broker',
+        self.old = {'id':'old-account', 'address':'www.tencentcloud.com','userName':'broker',
             'safeName':'CloudSafe','platformId':'TencentSTS',
             'platformAccountProperties':{'TencentSecretId':'old-id','TencentRoleProfile':'readonly'}}
         self.vault.account.return_value = self.old

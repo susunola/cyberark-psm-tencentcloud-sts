@@ -6,7 +6,7 @@
 
 | Capability | Delivery | Boundary |
 |---|---|---|
-| Console federation | Bridge, caller/role restrictions, short-lived STS | Mainland Tencent role callback; live PSM acceptance pending |
+| Console federation | Bridge, caller/role restrictions, short-lived STS | International Tencent role callback; live PSM acceptance pending |
 | Key lifecycle | Verify, prepare replacement, finalize, restore old | External workflow; not a native CPM plug-in; scheduled preparation requires tested cutover |
 | Discovery | CAM users/key metadata, paginated regional CVM inventory | Explicit authorized regions; no passwords discovered |
 | Onboarding | PVWA account creation and CVM proposals | Existing Safe/platform/custom properties required |
@@ -69,5 +69,5 @@ Before production: test the actual PVWA endpoint/permissions and custom properti
 ## Interface references
 
 - [CyberArk official EPV API scripts](https://github.com/cyberark/epv-api-scripts), including [EPV-API-Common](https://github.com/cyberark/epv-api-scripts/tree/main/EPV-API-Common): request, session and recording endpoint references. Its distribution is labeled Alpha; target-version acceptance remains required. No upstream code is redistributed here.
-- [Tencent CAM API overview](https://cloud.tencent.com/document/product/598/33155).
+- [Tencent CAM API overview](https://www.tencentcloud.com/document/api/598/37088).
 - [Tencent STS GetCallerIdentity](https://www.tencentcloud.com/document/product/1150/49453).

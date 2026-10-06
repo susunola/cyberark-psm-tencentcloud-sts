@@ -14,7 +14,7 @@ class RecoveryTests(unittest.TestCase):
         self.cloud, self.vault = MagicMock(), MagicMock()
         self.op = 'a'*32
         self.journal = {'operation':self.op, 'status':'preparing', 'old_account':'old-account', 'target_uin':'123', 'profile':'readonly'}
-        self.old = {'id':'old-account','address':'cloud.tencent.com','safeName':'CloudSafe','platformId':'TencentSTS', 'userName':'broker',
+        self.old = {'id':'old-account','address':'www.tencentcloud.com','safeName':'CloudSafe','platformId':'TencentSTS', 'userName':'broker',
                     'platformAccountProperties':{'TencentSecretId':'old-id','TencentRoleProfile':'readonly'}}
         self.new = copy.deepcopy(self.old); self.new['id']='new-account'; self.new['platformAccountProperties']['TencentSecretId']='new-id'
         self.vault.account.side_effect=lambda value:self.old if value=='old-account' else self.new

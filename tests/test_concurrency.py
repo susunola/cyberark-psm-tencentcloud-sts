@@ -33,7 +33,7 @@ class TokenTests(unittest.TestCase):
         started = threading.Barrier(3)
         finish = threading.Event()
         settings = {'profiles': {'readonly': {'role_arn':'qcs::cam::uin/123:roleName/ReadOnly',
-            'allowed_secret_ids':['broker-id'], 'destination':'https://console.cloud.tencent.com/',
+            'allowed_secret_ids':['broker-id'], 'destination':'https://console.tencentcloud.com/',
             'duration_seconds':300, 'region':'ap-guangzhou'}}}
         def slow_sts(*args):
             started.wait(timeout=5)

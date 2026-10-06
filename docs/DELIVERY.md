@@ -1,8 +1,8 @@
-# Delivery ledger — 0.5.0
+# Delivery ledger — 0.5.1
 
 **English** | [简体中文](DELIVERY.zh-CN.md)
 
-The repository implements a mainland Tencent console federation bridge and public-API administrative toolkit. It is not the CyberArk PAM product, a universally importable platform package or a certified AWS connector equivalent. This ledger separates implemented functions, existing native providers and external deliverables without treating mock tests as production evidence.
+The repository implements a international Tencent console federation bridge and public-API administrative toolkit. It is not the CyberArk PAM product, a universally importable platform package or a certified AWS connector equivalent. This ledger separates implemented functions, existing native providers and external deliverables without treating mock tests as production evidence.
 
 | Area | Implemented in this repository | Native/external boundary |
 |---|---|---|
@@ -26,7 +26,7 @@ The repository implements a mainland Tencent console federation bridge and publi
 2. **Target-environment acceptance.** Not performed: live Tencent login/rotation and PVWA/PSM/CPM operations, approvals, recording, Windows service execution, production TLS/ACL/failover. A tested source package is not evidence for these.
 3. **Supported-version certification and official contribution.** Not obtained/submitted. An all-version compatibility claim cannot be made without a defined supported matrix and real evidence. Marketplace contributor agreements and submission remain owner/customer actions.
 
-Vault permissions, MFA, native recording, guest password protocols, Safe policy and PAM disaster recovery are provider capabilities to configure and validate, not separate copies of PAM to implement in this plugin. Mainland Tencent role federation is the current scope; international-site callbacks and legacy-only PVWA adapters are not supported/certified by this implementation.
+Vault permissions, MFA, native recording, guest password protocols, Safe policy and PAM disaster recovery are provider capabilities to configure and validate, not separate copies of PAM to implement in this plugin. International-site Tencent role federation is the current scope; mainland callbacks and legacy-only PVWA adapters are outside scope. Live international login still requires target-environment acceptance.
 
 ## Completed administrative commands
 

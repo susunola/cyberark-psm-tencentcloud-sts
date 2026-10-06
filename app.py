@@ -70,7 +70,7 @@ def create_app(settings, *, proxy_key, session_key, sts=assume_role, token_store
         response.headers.update({'Cache-Control': 'no-store', 'Pragma': 'no-cache',
             'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
             'X-Request-ID': g.request_id,
-            'Content-Security-Policy': "default-src 'none'; form-action 'self' https://cloud.tencent.com https://console.cloud.tencent.com; frame-ancestors 'none'; base-uri 'none'"})
+            'Content-Security-Policy': "default-src 'none'; form-action 'self' https://www.tencentcloud.com https://console.tencentcloud.com; frame-ancestors 'none'; base-uri 'none'"})
         # No form values, URL queries, cookies, Location headers or exception messages.
         logger.info(audit_event({'event': 'http_result', 'request_id': g.request_id,
                               'status': response.status_code}))

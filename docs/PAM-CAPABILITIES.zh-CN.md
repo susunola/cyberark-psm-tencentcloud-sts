@@ -6,7 +6,7 @@
 
 | 能力 | 已提供 | 边界 |
 |---|---|---|
-| 控制台登录 | STS 角色联邦、角色与调用密钥限制 | 腾讯云中国站；真实 PSM 验收待完成 |
+| 控制台登录 | STS 角色联邦、角色与调用密钥限制 | 腾讯云国际站；真实 PSM 验收待完成 |
 | 密钥生命周期 | 验证、两阶段轮换、旧密钥恢复 | 外部管理流程；不是原生 CPM 包；支持定时准备但切换需验收 |
 | 发现与纳管 | CAM 子用户/密钥元数据、分地域 CVM 分页、PVWA 纳管 | 不发现密码；需已有 Safe、平台和自定义属性 |
 | SSH/RDP | 客户机账户规划及原生 PSMConnect 调用 | 需原生连接组件、网络及有效客户机凭据 |
@@ -62,4 +62,4 @@ python scripts/pamctl.py session --id session-123 --action suspend
 
 生产前仍需确认目标接口、平台属性、权限、PSM 连接框架，以及控制台/SSH/RDP、审批、录屏、轮换、回滚验收。公开接口降低版本依赖，但不等于全版本兼容。可直接导入的原生平台/CPM 包仍需针对目标版本打包和验收。
 
-接口依据为 [CyberArk 官方 EPV API scripts](https://github.com/cyberark/epv-api-scripts/tree/main/EPV-API-Common)（该公共模块标为 Alpha，不随本包复制）、[腾讯云 CAM API](https://cloud.tencent.com/document/product/598/33155) 和 [STS GetCallerIdentity](https://www.tencentcloud.com/document/product/1150/49453)。
+接口依据为 [CyberArk 官方 EPV API scripts](https://github.com/cyberark/epv-api-scripts/tree/main/EPV-API-Common)（该公共模块标为 Alpha，不随本包复制）、[腾讯云 CAM API](https://www.tencentcloud.com/document/api/598/37088) 和 [STS GetCallerIdentity](https://www.tencentcloud.com/document/product/1150/49453)。

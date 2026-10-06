@@ -14,7 +14,7 @@ class HttpRuntimeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         settings = {'profiles': {'readonly': {'role_arn':'qcs::cam::uin/123:roleName/ReadOnly',
-            'allowed_secret_ids':['broker-id'], 'destination':'https://console.cloud.tencent.com/',
+            'allowed_secret_ids':['broker-id'], 'destination':'https://console.tencentcloud.com/',
             'duration_seconds':300, 'region':'ap-guangzhou'}}}
         def mock_sts(*args):
             return {'TmpSecretId':'AKID-TEST','TmpSecretKey':'fake-key','Token':'fake-token'}
@@ -62,7 +62,7 @@ class HttpRuntimeTests(unittest.TestCase):
             allow_redirects=False, data={'csrf':csrf,'profile':'readonly','secret_id':'broker-id',
             'secret_key':'fake-key','audit_label':'test-user'})
         self.assertEqual(result.status_code,303)
-        self.assertTrue(result.headers['Location'].startswith('https://cloud.tencent.com/login/roleAccessCallback?'))
+        self.assertTrue(result.headers['Location'].startswith('https://www.tencentcloud.com/login/roleAccessCallback?'))
         replay = requests.post(self.url+'/connect', headers=headers, timeout=3,
             allow_redirects=False, data={'csrf':csrf,'profile':'readonly','secret_id':'broker-id',
             'secret_key':'fake-key','audit_label':'test-user'})

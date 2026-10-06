@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class HardeningTests(unittest.TestCase):
     def setUp(self):
         self.settings = {'profiles': {'readonly': {'role_arn': 'qcs::cam::uin/123:roleName/ReadOnly',
-            'allowed_secret_ids': ['broker-id'], 'destination': 'https://console.cloud.tencent.com/',
+            'allowed_secret_ids': ['broker-id'], 'destination': 'https://console.tencentcloud.com/',
             'duration_seconds': 300, 'region': 'ap-guangzhou'}}}
         self.calls = []
         def sts(*args):
@@ -70,7 +70,7 @@ class HardeningTests(unittest.TestCase):
         r = self.client.get('/', headers=self.headers, base_url='https://bridge.local')
         for flag in ('Secure', 'HttpOnly', 'SameSite=Strict'):
             self.assertIn(flag, r.headers['Set-Cookie'])
-        self.assertIn('form-action \'self\' https://cloud.tencent.com', r.headers['Content-Security-Policy'])
+        self.assertIn('form-action \'self\' https://www.tencentcloud.com', r.headers['Content-Security-Policy'])
         self.assertEqual(r.headers['Referrer-Policy'], 'no-referrer')
         self.assertRegex(r.headers['X-Request-ID'], r'^[0-9a-f]{32}$')
 
@@ -111,14 +111,14 @@ class HardeningTests(unittest.TestCase):
             self.assertNotIn(secret, output)
 
     def test_invalid_url_types(self):
-        for value in (None, 42, [], '', 'https://console.cloud.tencent.com/\n', 'https://console.cloud.tencent.com/\\evil'):
+        for value in (None, 42, [], '', 'https://console.tencentcloud.com/\n', 'https://console.tencentcloud.com/\\evil'):
             with self.assertRaises(FederationError):
                 validate_destination(value)
 
     def test_invalid_temporary_credentials(self):
         for creds in ({}, {'TmpSecretId': 'bad&id', 'TmpSecretKey': 'key', 'Token': 'token'}):
             with self.assertRaises(FederationError):
-                login_url(creds, 'https://console.cloud.tencent.com/')
+                login_url(creds, 'https://console.tencentcloud.com/')
 
     def test_proxy_template_overwrites_headers(self):
         root = ElementTree.parse(ROOT / 'deployment/web.config.template').getroot()

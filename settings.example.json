@@ -3,9 +3,9 @@
     "tc-readonly": {
       "role_arn": "qcs::cam::uin/100000000001:roleName/PSMReadOnly",
       "allowed_secret_ids": ["REPLACE_WITH_BROKER_CAM_SECRET_ID"],
-      "destination": "https://console.cloud.tencent.com/",
+      "destination": "https://console.tencentcloud.com/",
       "duration_seconds": 300,
-      "region": "ap-guangzhou"
+      "region": "ap-singapore"
     }
   }
 }

@@ -2,13 +2,98 @@
 
 [English](README.md) | **简体中文**
 
-腾讯云中国站控制台角色登录连接组件源码包，采用 AWS Console STS 同类架构：PVWA 授权 → PSM Web 注入 Vault 凭据 → 登录桥接服务调用 STS AssumeRole → 生成腾讯云角色登录签名 → PSM 浏览器进入控制台。
+**从这里开始：[详细安装与使用手册](docs/INSTALLATION-AND-USAGE.zh-CN.md)** — 部署准备、Windows/IIS 安装、PVWA/PSM 配置、完整命令、轮换恢复与排错。
+
+腾讯云国际站控制台角色登录连接组件源码包，采用 AWS Console STS 同类架构：PVWA 授权 → PSM Web 注入 Vault 凭据 → 登录桥接服务调用 STS AssumeRole → 生成腾讯云角色登录签名 → PSM 浏览器进入控制台。
+
+## 登录原理与整体流程
+
+PSM 浏览器将 Vault 凭据提交到已认证的本地桥接服务，由服务换取角色临时凭据；浏览器再经腾讯云国际站签名回调建立控制台会话。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant PVWA
+    participant Vault
+    participant PSM as PSM Web browser
+    participant IIS as IIS HTTPS proxy
+    participant Bridge as Local STS bridge
+    participant STS as sts.intl.tencentcloudapi.com
+    participant Login as www.tencentcloud.com
+    participant Console as console.tencentcloud.com
+    User->>PVWA: 选择账号、原因及工单
+    PVWA->>PVWA: 检查 Safe 权限、MFA 和审批策略
+    PVWA->>PSM: 启动已授权的原生 PSM 会话
+    Vault-->>PSM: 受控读取账号凭据
+    PSM->>IIS: Windows 认证后获取表单
+    IIS->>Bridge: 携可信身份和密钥转发至环回后端
+    Bridge-->>PSM: 返回表单及身份绑定的单次 CSRF
+    PSM->>IIS: 提交 PSM 注入的密钥、profile 和 CSRF
+    IIS->>Bridge: 覆盖客户端头并转发已认证 POST
+    Bridge->>Bridge: 校验身份、CSRF 和调用者/角色绑定
+    Bridge->>STS: 使用专用调用凭据请求 AssumeRole
+    STS-->>Bridge: 返回角色临时凭据
+    Bridge->>Bridge: 用 HMAC-SHA256 签名国际站回调
+    Bridge-->>PSM: 303 跳转到签名回调地址
+    PSM->>Login: 访问带签名的临时登录地址
+    Login-->>PSM: 建立云端会话并重定向
+    PSM->>Console: 按角色权限访问控制台
+    Note over PSM,Console: 原生 PSM 负责录屏；关闭 PSM 不撤销云端临时凭据
+```
+
+## 部署架构
+
+实线表示请求或受控依赖，虚线表示返回浏览器的重定向及可选共享令牌状态。客户机 SSH/RDP 使用独立的原生 PSM 路径。
+
+```mermaid
+flowchart TB
+    U[授权用户] --> PVWA
+    subgraph PAM[CyberArk PAM 环境]
+        PVWA[PVWA: authorization / MFA / approval / tickets]
+        V[Vault: CAM and guest credentials]
+        CPM[原生 CPM：已验证客户机平台]
+        REC[原生 PSM 录像与审计]
+        subgraph HOST[Windows PSM 主机]
+            B[Native PSM Web browser]
+            I[IIS: HTTPS / Windows Authentication]
+            S[Bridge service: LocalService / 127.0.0.1:8765]
+            CFG[受保护角色白名单及服务秘密]
+        end
+        PVWA --> B
+        V -->|controlled retrieval| B
+        B -->|HTTPS form| I
+        I -->|overwrite identity and key / loopback| S
+        CFG --> S
+        B --> REC
+        CPM --> V
+    end
+    subgraph TC[腾讯云国际站]
+        STS[sts.intl.tencentcloudapi.com]
+        LOGIN[www.tencentcloud.com role callback]
+        CONSOLE[console.tencentcloud.com]
+        CAM[cam.intl.tencentcloudapi.com]
+        CVM[cvm.intl.tencentcloudapi.com]
+        G[Private Windows / Linux CVM guests]
+    end
+    S -->|AssumeRole HTTPS| STS
+    S -.->|303 returned through proxy to browser| B
+    B -->|signed temporary URL| LOGIN
+    LOGIN -->|cloud session redirect| CONSOLE
+    B -->|native PSM-SSH / PSM-RDP separately| G
+    CPM -->|native guest password management| G
+    A[受保护管理工作站：pamctl / 维护] -->|authorized API session| PVWA
+    A -->|scoped key management| CAM
+    A -->|inventory discovery| CVM
+    R[可选共享 Redis：TLS / ACL / 单一可写主节点]
+    S -.->|multi-node single-use form state| R
+```
 
 本包包含可运行的桥接服务和单元测试。它不是直接导入 PVWA 的平台 ZIP；缺少现场 PSM 版本、Web 框架和腾讯云测试账号，尚未完成 Windows、PSM 录屏或腾讯云真实登录验收。
 
 ## 交付状态与运维
 
-0.5.0 已补充严格配置校验、调用密钥与角色独占绑定、Windows 安装/卸载脚本、IIS 代理模板、安全审计关联、CI、可重现源码包与 SHA256。原创代码采用 MIT 许可，维护者为 **susunola**。
+0.5.1 已补充严格配置校验、调用密钥与角色独占绑定、Windows 安装/卸载脚本、IIS 代理模板、安全审计关联、CI、可重现源码包与 SHA256。原创代码采用 MIT 许可，维护者为 **susunola**。
 
 - [完整交付清单与剩余外部依赖](docs/DELIVERY.zh-CN.md)
 - [原生 CPM/PSM 操作、恢复、定时维护和共享令牌](docs/OPERATIONS.zh-CN.md)
@@ -41,34 +126,15 @@
 1. 创建专用 CAM 调用子用户，为其开通 API 密钥。将 SecretId 保存到 CyberArk 账号属性 `TencentSecretId`，SecretKey 保存到 Vault 密码字段。不要使用主账号密钥。
 2. 创建角色载体为账号的目标角色，并允许其登录控制台。配置角色信任关系，允许指定调用主体扮演；同时给调用子用户授予作用于该角色的 `sts:AssumeRole` 权限。信任关系与调用权限两边都必须生效。
 3. 给目标角色绑定业务所需权限，先用只读角色验收。桥接服务不创建用户、角色或广泛的管理权限。独立管理工具提供两阶段密钥轮换；原生 CPM 按需另行配置，切换时同步角色白名单。
-4. 配置 `settings.json` 中的角色 ARN、允许的 SecretId 和目标页面。默认 300 秒，依照腾讯云角色免密登录文档的建议；在测试环境确认当前 STS 接口接受这个时长。
+4. 配置 `settings.json` 中的角色 ARN、允许的 SecretId 和目标页面。默认 300 秒，作为本项目短期凭据策略；在测试环境确认当前 STS 接口接受这个时长。
 
 ## 桥接服务部署到 Windows PSM
 
-建议先在测试 PSM 部署。使用受支持的 Python 3 运行本包，示例：
+按[手册的安装步骤](docs/INSTALLATION-AND-USAGE.zh-CN.md#install)操作。在完整源码目录打开管理员 PowerShell，执行 `scripts/Install-Bridge.ps1`，提供机器级 Python、经审核的 WinSW、可信 SHA256 和已校验配置。**不要预先创建安装目录**，由安装器创建并设置受限 ACL。
 
-```powershell
-py -3 -m venv C:\PSM-TencentCloud\venv
-C:\PSM-TencentCloud\venv\Scripts\python.exe -m pip install -r C:\PSM-TencentCloud\requirements.lock.txt
-```
+安装器以 LocalService 注册 `PSMTencentCloudSTS`，安装锁定依赖、生成独立代理/会话密钥并检查就绪。后端监听 `127.0.0.1:8765`，接入 PSM 前先配置 HTTPS 认证代理。服务 XML 和生成的 IIS 配置含秘密，必须保护。
 
-将 `settings.example.json` 复制为 `settings.json` 并填入实际配置。服务账户需只读代码、配置；普通 PSM 会话账户不能修改代码、角色配置和服务秘密。
-
-由 Windows 服务管理器或组织现有服务封装工具管理以下进程：
-
-```text
-C:\PSM-TencentCloud\venv\Scripts\python.exe C:\PSM-TencentCloud\app.py
-```
-
-工作目录设为 `C:\PSM-TencentCloud`，设置服务环境变量：
-
-| 环境变量 | 内容 |
-|---|---|
-| `PSM_TC_CONFIG` | `settings.json` 的绝对路径 |
-| `PSM_TC_PROXY_KEY` | 高熵随机值，至少 32 字符，供受信任代理与服务之间鉴权 |
-| `PSM_TC_SESSION_KEY` | 另一个独立高熵随机值，至少 32 字符，用于表单会话签名 |
-
-秘密不纳入代码仓库、不显示给用户、不放进 WebFormFields。服务监听 `127.0.0.1:8765`；不要直接向浏览器暴露这个端口。使用单个服务进程，线程并发可以；单次 CSRF 状态保存在进程内，多进程部署需要先实现共享存储。
+服务目录只包含最小运行文件；管理工具和测试在独立的完整源码环境执行。单节点使用内存表单令牌；[多节点模式](docs/INSTALLATION-AND-USAGE.zh-CN.md#advanced)使用 Redis 共享令牌和统一会话签名密钥。
 
 ## HTTPS 认证代理（部署前置条件）
 
@@ -103,14 +169,14 @@ C:\PSM-TencentCloud\venv\Scripts\python.exe C:\PSM-TencentCloud\app.py
 
 300 秒是 STS 凭据申请时长。控制台 Cookie 寿命和 PSM 会话超时必须单独验证；关闭 PSM 会话不等于撤销已发出的临时凭据。本包不实现腾讯云会话撤销或强制全局登出。
 
-当前仅实现中国站、普通 CAM 角色；国际站和服务角色需另行适配。登录策略、网络限制、MFA 条件应在腾讯云侧保持生效；若策略要求而调用不满足，连接应失败，不通过降级策略绕过。
+当前实现国际站普通 CAM 角色；中国站控制台回调和服务角色不在当前配置范围内。登录策略、网络限制、MFA 条件应在腾讯云侧保持生效；若策略要求而调用不满足，连接应失败，不通过降级策略绕过。
 
 ## 验证
 
-离线测试：
+在完整源码目录，按手册创建管理用 `.venv` 后执行离线测试：
 
 ```powershell
-C:\PSM-TencentCloud\venv\Scripts\python.exe -m unittest discover -s tests -v
+& .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
 测试覆盖签名与 URL 编码、目的域名约束、代理认证边界、CSRF 重放、角色及调用者白名单、STS 失败信息脱敏。使用模拟 STS，不证明云端登录兼容性。
@@ -119,9 +185,11 @@ C:\PSM-TencentCloud\venv\Scripts\python.exe -m unittest discover -s tests -v
 
 ## 官方依据
 
-- 腾讯云角色免密登录控制台：https://cloud.tencent.com/document/product/598/45529
-- 腾讯云使用角色：https://cloud.tencent.com/document/product/598/19419
+- 腾讯云角色免密登录控制台：https://www.tencentcloud.com/document/product/614/36997
+- 腾讯云使用角色：https://www.tencentcloud.com/document/product/598/19419
 - 腾讯云 STS Python SDK：https://github.com/TencentCloud/tencentcloud-sdk-python
 - CyberArk Web applications for PSM（选择安装版本）：https://docs.cyberark.com/pam-self-hosted/latest/en/Content/PASIMP/psm_WebApplication.htm
 
 本包为独立实现，不包含 CyberArk 专有 SDK，也不是 CyberArk Marketplace 认证产品。
+
+国际站接口依据：[AssumeRole](https://www.tencentcloud.com/document/product/1150/49456)、[GetCallerIdentity](https://www.tencentcloud.com/document/product/1150/49453)、[CAM ListAccessKeys](https://www.tencentcloud.com/zh/document/api/598/37088)、[CVM DescribeInstances](https://www.tencentcloud.com/document/product/213/33258)。角色回调规范见官方 **Embedding CLS Console (old scheme)** 页面；配置的控制台目的页仍需真实登录验收。

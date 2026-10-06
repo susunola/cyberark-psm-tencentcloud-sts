@@ -9,14 +9,14 @@ def uin(value):
 
 
 class Cloud:
-    def __init__(self, secret_id, secret_key, region='ap-guangzhou'):
+    def __init__(self, secret_id, secret_key, region='ap-singapore'):
         from tencentcloud.common.credential import Credential
         from tencentcloud.common.profile.client_profile import ClientProfile
         from tencentcloud.common.profile.http_profile import HttpProfile
         from tencentcloud.cam.v20190116.cam_client import CamClient
         self.credential = Credential(secret_id, secret_key)
         self.region = region
-        self.cam = CamClient(self.credential, region, ClientProfile(httpProfile=HttpProfile(endpoint='cam.tencentcloudapi.com', reqTimeout=15)))
+        self.cam = CamClient(self.credential, region, ClientProfile(httpProfile=HttpProfile(endpoint='cam.intl.tencentcloudapi.com', reqTimeout=15)))
 
     @staticmethod
     def call(function, request):
@@ -60,7 +60,7 @@ class Cloud:
         from tencentcloud.common.profile.http_profile import HttpProfile
         from tencentcloud.sts.v20180813 import sts_client, models
         client = sts_client.StsClient(Credential(secret_id, secret_key), self.region,
-            ClientProfile(httpProfile=HttpProfile(endpoint='sts.tencentcloudapi.com', reqTimeout=15)))
+            ClientProfile(httpProfile=HttpProfile(endpoint='sts.intl.tencentcloudapi.com', reqTimeout=15)))
         identity = self.call(client.GetCallerIdentity, models.GetCallerIdentityRequest())
         if str(identity.UserId) != str(uin(target)):
             raise FederationError('Credential belongs to a different identity')
@@ -80,7 +80,7 @@ class Cloud:
             if not re.fullmatch(r'[a-z]+-[a-z]+', region):
                 raise ValueError('Invalid region')
             client = cvm_client.CvmClient(self.credential, region,
-                ClientProfile(httpProfile=HttpProfile(endpoint='cvm.tencentcloudapi.com', reqTimeout=15)))
+                ClientProfile(httpProfile=HttpProfile(endpoint='cvm.intl.tencentcloudapi.com', reqTimeout=15)))
             offset = 0
             while True:
                 req = models.DescribeInstancesRequest(); req.Offset = offset; req.Limit = 100
