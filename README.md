@@ -2,113 +2,89 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-A Tencent Cloud mainland console role login bridge for CyberArk PSM, using an architecture similar to AWS Console STS:
+CyberArk PSM bridge for Tencent Cloud mainland role-console login. PSM injects a broker CAM key, this process calls STS `AssumeRole`, and the PSM browser is handed a signed `roleAccessCallback` session.
 
 ```text
 PVWA authorization → PSM Web injects Vault credentials → STS AssumeRole
-                   → signed Tencent Cloud role login URL → PSM browser console session
+                   → signed role login request → PSM browser console session
 ```
 
-This package includes a runnable bridge and unit tests. It is not a platform ZIP that can be imported directly into PVWA. Windows deployment, PSM recording, and live Tencent Cloud login have not been validated against a target environment.
+This is a runnable bridge and an offline test suite. It is not a PVWA platform ZIP, and it is not a CyberArk Marketplace product. Windows deployment, PSM recording, and live Tencent Cloud login still have to be accepted in the target environment.
+
+## What changed in 1.0
+
+The bridge stays on the documented HMAC-SHA256 callback, and the trust boundary is tighter:
+
+- Default handoff is an auto-submitted POST. Temporary credentials no longer sit in a `Location` header. `submit_method=get` remains for a PSM build that cannot run the handoff script.
+- Role, destination, duration, caller SecretId, ExternalId, and session policy come from server config. The form cannot choose them.
+- Loopback peer check plus a proxy shared key. `X-Forwarded-For` is ignored. Client-supplied identity headers are not trusted.
+- Single-use CSRF, 120 second expiry, per-identity rate limit, and a 300 second duration cap. Tencent recommends no more than five minutes for this login flow.
+- Audit events are explicit JSON fields. Secret keys, tokens, and signatures are not log arguments.
+- Startup rejects placeholder SecretIds, unknown keys, service-role ARNs, non-console destinations, and arbitrary STS endpoints.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `federation.py` | Official SDK STS calls, HMAC-SHA256 signing, and role login URL construction |
-| `app.py` | Bridge form, authenticated proxy checks, single-use CSRF, role/caller allowlists, and 303 redirect |
-| `settings.example.json` | Server-side role configuration; users cannot submit arbitrary roles or destinations |
-| `cam-assume-policy.example.json` | Caller sub-user permission example; replace the account and role |
-| `WebFormFields.template.txt` | Credential injection mapping; verify against the installed PSM version |
-| `requirements.in` / `requirements.lock.txt` | Dependency ranges and tested versions |
-| `tests/test_bridge.py` | Offline tests using mock credentials and STS calls |
+| `psm_tc_bridge/` | Package: config, federation, app, audit |
+| `app.py` | Compatible launcher for `python app.py` |
+| `settings.example.json` | Server-side role profiles. Not loaded until copied and filled in |
+| `cam-assume-policy.example.json` | Caller `sts:AssumeRole` permission |
+| `session-policy.example.json` | Optional inline session policy, no principal |
+| `WebFormFields.template.txt` | PSM field map. Confirm syntax on the installed version |
+| `deploy/iis-proxy.md` | Proxy boundary the bridge assumes |
+| `tests/` | Offline signature, CSRF, allowlist, SDK shape, redaction |
 
-## Tencent Cloud configuration
+## Tencent Cloud
 
-1. Create a dedicated CAM caller sub-user with API keys. Store its SecretId in the CyberArk account property `TencentSecretId` and its SecretKey in the Vault password field. Do not use root account keys.
-2. Create an account-trusted target role with console login enabled. Configure its trust relationship to permit the intended caller, and grant the caller `sts:AssumeRole` permission for that role. Both sides must permit the operation.
-3. Attach the required business permissions to the role; start acceptance testing with a read-only role. The bridge does not provision users/roles or rotate keys. Configure CPM separately for long-term key rotation and update the caller allowlist when keys change.
-4. Set the role ARN, allowed SecretIds, and destination in `settings.json`. The default duration is 300 seconds, following Tencent Cloud role login guidance. Verify that the current STS API accepts this duration in staging.
+1. Create a broker CAM sub-user. Store its SecretId in account property `TencentSecretId` and its SecretKey in the Vault password. Do not use root keys.
+2. Create an ordinary role with console login enabled. Trust the broker, and grant the broker `sts:AssumeRole` on that role. Both sides must allow it. Set an ExternalId on the role and copy it into the profile.
+3. Attach business permissions to the role. Start with read-only. Optional `session_policy` can only narrow the temporary credentials.
+4. Copy `settings.example.json` to `settings.json`. The process refuses to start while `REPLACE` is present.
 
-## Windows PSM deployment
+Duration is capped at 300 seconds. Closing the PSM session does not revoke credentials already issued.
 
-Start on a test PSM server with a supported Python 3 installation:
+## Run
 
 ```powershell
 py -3 -m venv C:\PSM-TencentCloud\venv
 C:\PSM-TencentCloud\venv\Scripts\python.exe -m pip install -r C:\PSM-TencentCloud\requirements.lock.txt
 ```
 
-Copy `settings.example.json` to `settings.json` and enter your environment values. Give the service account read access to code and configuration. Ordinary PSM session accounts must not be able to modify code, role configuration, or service secrets.
+Environment, not the command line:
 
-Use a Windows service wrapper or your existing service management tooling to manage this process:
-
-```text
-C:\PSM-TencentCloud\venv\Scripts\python.exe C:\PSM-TencentCloud\app.py
-```
-
-Set its working directory to `C:\PSM-TencentCloud` and configure:
-
-| Service environment variable | Value |
+| Variable | Value |
 |---|---|
 | `PSM_TC_CONFIG` | Absolute path to `settings.json` |
-| `PSM_TC_PROXY_KEY` | High-entropy random value of at least 32 characters shared with the trusted proxy |
-| `PSM_TC_SESSION_KEY` | Independent high-entropy random value of at least 32 characters for session signing |
+| `PSM_TC_PROXY_KEY` | At least 32 characters, shared only with the proxy |
+| `PSM_TC_SESSION_KEY` | Independent value, at least 32 characters |
 
-Keep secrets out of the repository, user-visible output, and WebFormFields. The backend listens on `127.0.0.1:8765`; do not expose it directly to browsers. Use a single service process with concurrent threads. Single-use CSRF state is stored in process memory; multiple processes require a shared store first.
-
-## Authenticated HTTPS proxy prerequisite
-
-Configure IIS or an enterprise-controlled reverse proxy on PSM with a dedicated HTTPS site, such as `https://psm-tc-bridge.internal/`, and a trusted certificate.
-
-The proxy must meet all these requirements:
-
-1. Disable anonymous access, enable Windows Authentication, and restrict access to approved PSM session service identities. Confirm the actual account in your environment; the browser must complete integrated authentication.
-2. **Remove browser-supplied** `X-PSM-Bridge-Key` and `X-PSM-Authenticated-User` headers. Set the first to the private bridge proxy key and the second to the actual Windows identity authenticated by the proxy. Never forward client-asserted identity values.
-3. Forward paths and POST forms to the fixed backend `http://127.0.0.1:8765` while preserving browser-side HTTPS. The bridge validates the actual TCP peer as loopback; do not substitute the remote client address.
-4. Restrict proxy key configuration access to administrators and the proxy service, and restrict site access to controlled hosts. Disable tracing of request bodies, cookies, response Location headers, and complete login URLs. Do not retain sensitive material in logs.
-5. Reject direct backend requests, missing proxy keys, unauthenticated requests, and forged identity headers. Correct proxy configuration is the authentication boundary; localhost alone is insufficient.
-
-IIS changes, ARR/URL Rewrite installation, certificates, and Windows service creation are environment-specific deployment steps and are not automated by this package. Complete them before production use. Do not enable Flask debug mode.
-
-## PVWA platform and connection component
-
-1. Duplicate the Web application sample component shipped with your PSM version and name it `PSM-TencentCloud-STS`. Retain the supported browser, driver, launcher, PID management, and exit handling.
-2. Set `LogonURL` to the authenticated HTTPS bridge root URL.
-3. Apply `WebFormFields.template.txt` in the stated order and verify custom property expansion syntax for your PSM version. Form element IDs belong to this bridge and do not depend on Tencent Cloud's page DOM.
-4. Create or duplicate an appropriate API credential platform and associate this component. Add account properties `TencentSecretId` and `TencentRoleProfile`; the latter selects a server-side profile such as `tc-readonly`. The password field must contain the CAM SecretKey.
-5. Do not let session users arbitrarily override profiles, SecretIds, or destinations. Use controlled account/platform authorization and Vault Safe permissions to govern connections.
-6. `ClientUserName` is an STS audit label, not an authentication source or independent proof of human identity. Labels accept 2–64 letters, digits, and `_.@=-`. Normalize unsupported usernames, including domain backslashes and Chinese characters, in a trusted dispatcher and preserve their mapping to PSM records.
-7. Submission redirects to Tencent Cloud's role callback and then to the console. Configure successful-login validation for your version; a loaded bridge page does not prove successful cloud login.
-8. The PSM Web framework provides browser isolation, PID reporting, recording, and cleanup. The bridge does not implement these functions. Verify them before exporting a formal component package from PVWA.
-
-## Signing and limitations
-
-Tencent Cloud uses `roleAccessCallback`, rather than AWS's `getSigninToken`. The signing string contains action, nonce, secretId, and timestamp. It is signed with the temporary SecretKey using HMAC-SHA256 and Base64 encoding. The temporary token, signature, and destination are URL-encoded.
-
-The long-term SecretKey is used in the HTTPS form submission and server memory, not files, logs, or command-line arguments. Python cannot guarantee memory zeroization. The callback URL **contains temporary credentials** and may be readable by browsers, administrators, or diagnostic tools. Apply your PSM Web baseline to debugging tools and logs, and test user-accessible extraction paths. This implementation does not guarantee that credentials are impossible to extract.
-
-The requested STS duration is 300 seconds. Console cookie lifetime and PSM timeouts must be validated separately. Closing a PSM session does not revoke issued credentials. The package does not implement cloud session revocation or forced global logout.
-
-Only mainland endpoints and ordinary CAM roles are implemented; international endpoints and service roles need adaptation. Keep cloud-side login policies, network restrictions, and MFA conditions effective. Requests that fail policy requirements must fail rather than bypassing those requirements.
-
-## Validation
-
-Run offline tests:
+The listener is `127.0.0.1:8765`. Do not publish it. Use one process: CSRF state is in memory. Do not enable Flask debug.
 
 ```powershell
-C:\PSM-TencentCloud\venv\Scripts\python.exe -m unittest discover -s tests -v
+C:\PSM-TencentCloud\venv\Scripts\python.exe -m psm_tc_bridge
 ```
 
-Tests cover signing and encoding, destination restrictions, proxy authentication, CSRF replay, role/caller allowlists, SDK request construction, expiring credentials, and redacted errors. Mock STS calls do not establish live login compatibility.
+## Proxy and PVWA
 
-For environment acceptance, verify role identity after login and failures for invalid keys or unauthorized roles. Reject altered profiles, replayed forms, and proxy bypasses. Check cookie isolation across users, STS audit label correlation, recording playback, browser cleanup after timeout/exit, and actual console session lifetime. Inspect browser, proxy, and service diagnostics for long-term key or temporary URL exposure. Mark the integration production-ready only after acceptance passes.
+The proxy is the authentication boundary. It must strip client `X-PSM-Bridge-Key` and `X-PSM-Authenticated-User`, then set the key itself and set the user to the Windows identity it authenticated. See [deploy/iis-proxy.md](deploy/iis-proxy.md).
 
-## Official references
+Duplicate the PSM Web application sample as `PSM-TencentCloud-STS`. Point `LogonURL` at the authenticated HTTPS bridge. Apply `WebFormFields.template.txt`. `TencentRoleProfile` selects a server profile such as `tc-readonly`. `ClientUserName` is an audit label, not an identity proof; normalize domain backslashes and unsupported characters before injection.
+
+A loaded bridge page is not a successful cloud login. Verify the console identity, recording, and browser cleanup on the target PSM version.
+
+## Tests
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+Mock STS calls do not prove live login compatibility.
+
+## References
 
 - [Tencent Cloud role console login](https://cloud.tencent.com/document/product/598/45529)
-- [Using Tencent Cloud roles](https://cloud.tencent.com/document/product/598/19419)
-- [Tencent Cloud Python SDK](https://github.com/TencentCloud/tencentcloud-sdk-python)
-- [CyberArk Web applications for PSM](https://docs.cyberark.com/pam-self-hosted/latest/en/Content/PASIMP/psm_WebApplication.htm) — select your installed version.
+- [AssumeRole](https://cloud.tencent.com/document/api/1312/48197)
+- [CyberArk Web applications for PSM](https://docs.cyberark.com/pam-self-hosted/latest/en/Content/PASIMP/psm_WebApplication.htm)
 
-This is an independent implementation. It contains no proprietary CyberArk SDK and is not a CyberArk Marketplace-certified product.
+Independent implementation. No CyberArk SDK. Apache-2.0.
