@@ -165,6 +165,29 @@ class AccessKeyListTests(unittest.TestCase):
         self.assertEqual(type(request).__name__, "ListAccessKeysRequest")
         self.assertEqual(request.TargetUin, 123)
 
+    def test_malformed_or_repeated_key_records_are_refused(self):
+        cases = {
+            "repeated id": [
+                SimpleNamespace(AccessKeyId="AKID-A", Status="Active", Description=None),
+                SimpleNamespace(AccessKeyId="AKID-A", Status="Inactive", Description=None),
+            ],
+            "unknown status": [SimpleNamespace(AccessKeyId="AKID-A", Status="Deleted", Description=None)],
+            "missing id": [SimpleNamespace(AccessKeyId=None, Status="Active", Description=None)],
+            "non-string id": [SimpleNamespace(AccessKeyId=123, Status="Active", Description=None)],
+            "id with illegal characters": [SimpleNamespace(AccessKeyId="AKID/A", Status="Active", Description=None)],
+            "non-string description": [SimpleNamespace(AccessKeyId="AKID-A", Status="Active", Description=5)],
+            "oversized inventory": [
+                SimpleNamespace(AccessKeyId=f"AKID-{index}", Status="Active", Description=None)
+                for index in range(11)
+            ],
+        }
+        for name, records in cases.items():
+            with patch(CAM_CLIENT) as cam:
+                cloud = _cam_cloud(cam)
+                cam.return_value.ListAccessKeys.return_value = SimpleNamespace(AccessKeys=records)
+                with self.subTest(record=name), self.assertRaises(FederationError):
+                    cloud.keys(123)
+
     def test_missing_access_keys_become_an_empty_list(self):
         with patch(CAM_CLIENT) as cam:
             cloud = _cam_cloud(cam)

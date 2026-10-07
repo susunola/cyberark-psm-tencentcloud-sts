@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from federation import assume_role
-from pam.cloud import uin
+from pam.cloud import KEY_STATUSES, uin
 
 
 class LifecycleError(Exception):
@@ -102,6 +102,30 @@ def prepare(cloud: Any, vault: Any, old_account_id: str, target: object, profile
     return Ticket(operation, target, old_account_id, new_account, old_sid, new_sid, profile)
 
 
+def _assert_pair_bindings(old: Mapping[str, Any], new: Mapping[str, Any], ticket: Ticket) -> None:
+    """Both accounts must still carry the ticket's caller/profile binding and one scope."""
+    for account, sid in ((old, ticket.old_secret_id), (new, ticket.new_secret_id)):
+        props = account.get('platformAccountProperties', {})
+        if props.get('TencentSecretId') != sid or props.get('TencentRoleProfile') != ticket.profile:
+            raise LifecycleError('Vault account binding changed')
+    for field in ('safeName', 'platformId', 'userName', 'address'):
+        if old[field] != new[field]:
+            raise LifecycleError('Replacement account scope mismatch')
+
+
+def _assert_expected_pair(states: Mapping[str, str], ticket: Ticket) -> None:
+    """The target must hold exactly the rotating pair.
+
+    A third key means a second preparation ran (the slot check in prepare is
+    check-then-act), so refusing here is what stops a cutover from being reported
+    while an unverified credential stays live.
+    """
+    if set(states) != {ticket.old_secret_id, ticket.new_secret_id}:
+        raise LifecycleError(
+            'Target does not hold exactly the rotation pair; reconcile inventory before retiring anything'
+        )
+
+
 def finalize(
     cloud: Any,
     vault: Any,
@@ -116,18 +140,13 @@ def finalize(
     if ticket.old_secret_id == ticket.new_secret_id or ticket.old_account == ticket.new_account:
         raise LifecycleError('Old and new credentials must differ')
     old, new = vault.account(ticket.old_account), vault.account(ticket.new_account)
-    for account, sid in ((old, ticket.old_secret_id), (new, ticket.new_secret_id)):
-        props = account.get('platformAccountProperties', {})
-        if props.get('TencentSecretId') != sid or props.get('TencentRoleProfile') != ticket.profile:
-            raise LifecycleError('Vault account binding changed')
-    for field in ('safeName', 'platformId', 'userName', 'address'):
-        if old[field] != new[field]:
-            raise LifecycleError('Replacement account scope mismatch')
+    _assert_pair_bindings(old, new, ticket)
     profile = settings['profiles'].get(ticket.profile)
     if not profile or ticket.new_secret_id not in profile['allowed_secret_ids']:
         raise LifecycleError('Bridge configuration must authorize replacement key first')
     states = {k['id']: k['status'] for k in cloud.keys(ticket.target_uin)}
-    if states.get(ticket.new_secret_id) != 'Active' or states.get(ticket.old_secret_id) not in ('Active', 'Inactive'):
+    _assert_expected_pair(states, ticket)
+    if states[ticket.new_secret_id] != 'Active' or states[ticket.old_secret_id] not in KEY_STATUSES:
         raise LifecycleError('Unexpected target key state')
     secret = vault.secret(ticket.new_account, 'Verify staged Tencent Cloud rotation ' + ticket.operation)
     try:
@@ -138,21 +157,47 @@ def finalize(
         secret = None
     # Reduce the interval between the verified role call and credential retirement.
     latest = {k['id']: k['status'] for k in cloud.keys(ticket.target_uin)}
-    if latest.get(ticket.new_secret_id) != 'Active' or latest.get(ticket.old_secret_id) not in ('Active', 'Inactive'):
+    if (
+        latest.get(ticket.new_secret_id) != 'Active'
+        or latest.get(ticket.old_secret_id) not in KEY_STATUSES
+    ):
         raise LifecycleError('Key state changed during verification; inspect inventory')
+    _assert_expected_pair(latest, ticket)
     if latest[ticket.old_secret_id] == 'Active':
         cloud.set_key_status(ticket.target_uin, ticket.old_secret_id, 'Inactive')
         confirmed = {k['id']: k['status'] for k in cloud.keys(ticket.target_uin)}
-        if confirmed.get(ticket.new_secret_id) != 'Active' or confirmed.get(ticket.old_secret_id) != 'Inactive':
+        if (
+            confirmed.get(ticket.new_secret_id) != 'Active'
+            or confirmed.get(ticket.old_secret_id) != 'Inactive'
+        ):
             raise LifecycleError('Retirement outcome uncertain; reconcile inventory without automatic retry')
     return {'operation': ticket.operation, 'status': 'old-key-inactive', 'new_account': ticket.new_account}
 
 
-def restore_old(cloud: Any, target: object, old_sid: str) -> dict[str, str]:
-    keys = {k['id'] for k in cloud.keys(target)}
-    if old_sid not in keys:
+def restore_old(cloud: Any, vault: Any, ticket: Ticket, settings: Mapping[str, Any]) -> dict[str, str]:
+    """Roll a staged rotation back by reactivating the retired key.
+
+    Applies the same Vault binding, scope and bridge-allowlist checks as finalize,
+    so a hand-written ticket cannot revive an unrelated or incident-disabled key.
+    """
+    old, new = vault.account(ticket.old_account), vault.account(ticket.new_account)
+    _assert_pair_bindings(old, new, ticket)
+    profile = settings['profiles'].get(ticket.profile)
+    if not profile or ticket.old_secret_id not in profile['allowed_secret_ids']:
+        raise LifecycleError('Bridge configuration must authorize the old key first')
+    states = {k['id']: k['status'] for k in cloud.keys(ticket.target_uin)}
+    if ticket.old_secret_id not in states:
         raise LifecycleError('Cannot restore a deleted key')
-    cloud.set_key_status(target, old_sid, 'Active')
+    _assert_expected_pair(states, ticket)
+    if states[ticket.old_secret_id] == 'Active':
+        return {'status': 'old-key-already-active'}
+    cloud.set_key_status(ticket.target_uin, ticket.old_secret_id, 'Active')
+    confirmed = {k['id']: k['status'] for k in cloud.keys(ticket.target_uin)}
+    if (
+        set(confirmed) != {ticket.old_secret_id, ticket.new_secret_id}
+        or confirmed[ticket.old_secret_id] != 'Active'
+    ):
+        raise LifecycleError('Reactivation outcome uncertain; reconcile inventory without automatic retry')
     return {'status': 'old-key-reactivated'}
 
 

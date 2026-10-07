@@ -305,10 +305,10 @@ python scripts/pamctl.py recover-ticket --journal C:\Protected\TencentPSM\rotati
 需要回退且旧密钥尚未删除时：
 
 ```text
-python scripts/pamctl.py restore-old --ticket C:\Protected\TencentPSM\rotation.json --apply
+python scripts/pamctl.py restore-old --ticket C:\Protected\TencentPSM\rotation.json --settings C:\Protected\TencentPSM\settings.json --apply
 ```
 
-这只恢复旧密钥状态；还需恢复相应白名单/PVWA 权限并重新验收，不能恢复已经删除的密钥。轮换期间不要手动删除旧密钥。
+该命令会先复核 Vault 绑定、账号范围与桥接白名单，再重新启用并回读状态；它只恢复密钥状态，还需恢复相应 PVWA 权限并重新验收。已删除的密钥无法恢复。轮换期间不要手动删除旧密钥。
 
 <a id="advanced"></a>
 ## 9. 定时维护和多节点部署

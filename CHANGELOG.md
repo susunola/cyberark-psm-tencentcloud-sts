@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Refuse to retire a key unless the target holds exactly the rotation pair, so a second concurrent preparation can no longer leave an unverified key live under a "cutover complete" report.
+- Validate and de-duplicate the CAM access-key inventory before any retirement decision; a malformed, repeated or unexpected record now fails loudly instead of collapsing into a wrong key state.
+- Require the full Vault binding, account scope and bridge allowlist before `restore-old` reactivates a key, and read the state back afterwards. A hand-written ticket can no longer revive an unrelated or incident-disabled key.
+- Align the accepted `duration_seconds` floor with the runtime credential margin (31..300): shorter values could never satisfy the margin, so they previously produced a permanently failing profile.
+- Report the real cause when STS returns credentials that expire inside the margin; the diagnosis was previously swallowed by the sanitizing handler and surfaced as a generic STS failure.
 - Adopt one quality toolchain for local use and CI: ruff for lint, mypy for typing and `coverage run -m unittest discover` for the suite. `requirements-dev.txt` pins the tooling and a pre-commit configuration mirrors it on upstream tags.
 - Raise the enforced coverage gate from 80% to 95%; the measured total is 99.5% with 14 of 16 modules at 100%.
 - Define the type-checked surface once in `pyproject.toml` and extend it to `scripts/`, so the CLI that drives real credentials is checked too.

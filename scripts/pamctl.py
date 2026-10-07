@@ -87,7 +87,9 @@ def build_parser() -> argparse.ArgumentParser:
     final = commands.add_parser('finalize'); final.add_argument('--ticket', required=True)
     final.add_argument('--settings', required=True); final.add_argument('--confirm-psm-cutover', action='store_true')
     final.add_argument('--apply', action='store_true')
-    restore = commands.add_parser('restore-old'); restore.add_argument('--ticket', required=True)
+    restore = commands.add_parser('restore-old')
+    restore.add_argument('--ticket', required=True)
+    restore.add_argument('--settings', required=True)
     restore.add_argument('--apply', action='store_true')
     return parser
 
@@ -190,7 +192,7 @@ def main() -> None:
             if args.command == 'finalize':
                 result = finalize(cloud(), vault(), ticket, load_settings(args.settings), confirmed_cutover=args.confirm_psm_cutover)
             else:
-                result = restore_old(cloud(), ticket.target_uin, ticket.old_secret_id)
+                result = restore_old(cloud(), vault(), ticket, load_settings(args.settings))
     except Exception:  # noqa: BLE001 - never forward error text
         parser.exit(2, 'Operation failed. No secrets or raw API errors are emitted. Reconcile uncertain write outcomes before retry.\n')
     print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -52,7 +52,7 @@ python scripts/pamctl.py session --id session-123 --action suspend
 1. `prepare --old-account 1_2 --target-uin 123456789 --profile readonly --ticket rotation.json --apply`：先独占预留日志文件，保守检查双密钥容量、归属，创建并验证新密钥，将新配对保存到 Vault，保留旧密钥。只允许已列出的 CAM 子用户，拒绝管理根密钥。
 2. 在同一桥接角色配置加入新 SecretId，先保留旧 ID；给新 Vault 账户配置原生权限和连接设置。使用新账户验证真实控制台登录、审批、录屏和角色权限。
 3. `finalize --ticket rotation.json --settings settings.json --confirm-psm-cutover --apply`：确认上一步真实验收，再核验账户范围、密钥绑定、新主体和 AssumeRole 后停用旧密钥。程序不能代替人工确认浏览器登录与录屏结果。
-4. 回滚使用 `restore-old --ticket rotation.json --apply`，同时恢复桥接白名单/PVWA 访问并复测。密钥必须尚未删除。工具不提供密钥删除；后续清理由企业变更与保留策略执行。
+4. 回滚使用 `restore-old --ticket rotation.json --settings settings.json --apply`，同时恢复 PVWA 访问并复测。该命令会复核 Vault 绑定、账号范围与桥接白名单并回读状态，目标上不恰好是那把轮换密钥对时会拒绝。密钥必须尚未删除。工具不提供密钥删除；后续清理由企业变更与保留策略执行。
 
 以上命令均以 `python scripts/pamctl.py` 为前缀。成功票据仅含标识。失败可能只留下操作 ID 和 UIN；**不能删除日志后盲目重试**。按云端描述 `psm-rotation:<operation>`、Vault 名称 `tc-rotation-<operation>` 检查是否已写入，并记录对账结果。停用超时也可能已生效，应查询真实状态。避免把含 SecretKey 的原始响应写入日志；Python 不保证秘密内存彻底清零。
 

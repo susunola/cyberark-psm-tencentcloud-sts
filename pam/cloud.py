@@ -6,6 +6,10 @@ from typing import Any
 
 from federation import FederationError, validate_region
 
+KEY_STATUSES = ('Active', 'Inactive')
+KEY_ID_PATTERN = re.compile(r'[A-Za-z0-9_-]{1,256}')
+MAX_CAM_KEYS = 10
+
 
 def uin(value: object) -> int:
     if not re.fullmatch(r'[0-9]{1,20}', str(value)) or int(str(value)) <= 0:
@@ -34,12 +38,36 @@ class Cloud:
             raise FederationError('Cloud operation failed; inspect permissions and sanitized audit records') from None
 
     def keys(self, target: object) -> list[dict[str, str]]:
+        """Return a validated, duplicate-free CAM access-key inventory.
+
+        Retirement decisions read this list, so a malformed or repeated record must
+        fail loudly rather than collapse into a wrong key state.
+        """
         from tencentcloud.cam.v20190116.models import ListAccessKeysRequest
 
         req = ListAccessKeysRequest()
         req.TargetUin = uin(target)
         result = self.call(self.cam.ListAccessKeys, req)
-        return [{'id': k.AccessKeyId, 'status': k.Status, 'description': k.Description or ''} for k in result.AccessKeys or []]
+        records = getattr(result, 'AccessKeys', None) or []
+        if not isinstance(records, list) or len(records) > MAX_CAM_KEYS:
+            raise FederationError('Invalid or oversized CAM key inventory')
+        inventory: list[dict[str, str]] = []
+        seen: set[str] = set()
+        for record in records:
+            identifier = getattr(record, 'AccessKeyId', None)
+            status = getattr(record, 'Status', None)
+            description = getattr(record, 'Description', None)
+            if (
+                not isinstance(identifier, str)
+                or not re.fullmatch(KEY_ID_PATTERN, identifier)
+                or status not in KEY_STATUSES
+                or identifier in seen
+                or not isinstance(description, (str, type(None)))
+            ):
+                raise FederationError('Invalid or repeated CAM key record')
+            seen.add(identifier)
+            inventory.append({'id': identifier, 'status': status, 'description': description or ''})
+        return inventory
 
     def create_key(self, target: object, operation: str) -> tuple[str, str]:
         if not isinstance(operation, str) or not re.fullmatch(r'[a-f0-9]{32}', operation):

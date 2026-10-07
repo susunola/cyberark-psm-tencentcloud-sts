@@ -136,8 +136,36 @@ class LifecycleTests(unittest.TestCase):
         self.cloud.set_key_status.assert_not_called()
 
     def test_restore_old_is_reversible(self):
-        restore_old(self.cloud,'123','old-id')
-        self.cloud.set_key_status.assert_called_once_with('123','old-id','Active')
+        ticket = self.prepared()
+        self.cloud.keys.return_value[0]['status'] = 'Inactive'   # as if finalize already retired it
+        self.cloud.set_key_status.reset_mock()
+        self.assertEqual(restore_old(self.cloud, self.vault, ticket, self.settings),
+                         {'status': 'old-key-reactivated'})
+        self.cloud.set_key_status.assert_called_once_with('123', 'old-id', 'Active')
+
+    def test_restore_old_is_a_no_op_when_the_old_key_is_still_active(self):
+        ticket = self.prepared()
+        self.cloud.set_key_status.reset_mock()
+        self.assertEqual(restore_old(self.cloud, self.vault, ticket, self.settings),
+                         {'status': 'old-key-already-active'})
+        self.cloud.set_key_status.assert_not_called()
+
+    def test_restore_old_refuses_a_ticket_the_vault_does_not_bind(self):
+        ticket = self.prepared()
+        self.old['platformAccountProperties']['TencentSecretId'] = 'other-id'
+        self.cloud.set_key_status.reset_mock()
+        with self.assertRaises(LifecycleError):
+            restore_old(self.cloud, self.vault, ticket, self.settings)
+        self.cloud.set_key_status.assert_not_called()
+
+    def test_restore_old_refuses_when_the_bridge_does_not_allow_the_old_key(self):
+        ticket = self.prepared()
+        self.cloud.keys.return_value[0]['status'] = 'Inactive'
+        self.settings['profiles']['readonly']['allowed_secret_ids'] = ['new-id']
+        self.cloud.set_key_status.reset_mock()
+        with self.assertRaises(LifecycleError):
+            restore_old(self.cloud, self.vault, ticket, self.settings)
+        self.cloud.set_key_status.assert_not_called()
 
     def test_cli_write_defaults_to_no_write(self):
         root=Path(__file__).resolve().parents[1]

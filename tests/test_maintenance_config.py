@@ -454,13 +454,15 @@ class ConfigurationValidationTests(unittest.TestCase):
                 validate_settings({"profiles": {"readonly": profile(destination=destination)}})
 
     def test_duration_seconds_rejects_bools_and_out_of_range_values(self):
-        for duration in (True, False, "300", 300.0, 0, -1, 301, None):
+        # The floor mirrors federation's 30-second credential margin: anything shorter
+        # can never satisfy it, so accepting it would only create a dead profile.
+        for duration in (True, False, "300", 300.0, 0, -1, 1, 30, 301, None):
             with (
                 self.subTest(duration=duration),
-                self.assertRaisesRegex(ValueError, "Duration must be 1..300 seconds"),
+                self.assertRaisesRegex(ValueError, "Duration must be 31..300 seconds"),
             ):
                 validate_settings({"profiles": {"readonly": profile(duration_seconds=duration)}})
-        for duration in (1, 300):
+        for duration in (31, 300):
             validated = validate_settings({"profiles": {"readonly": profile(duration_seconds=duration)}})
             self.assertEqual(validated["profiles"]["readonly"]["duration_seconds"], duration)
 

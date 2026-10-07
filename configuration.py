@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from federation import validate_destination, validate_region
+from federation import MIN_CREDENTIAL_MARGIN_SECONDS, validate_destination, validate_region
 
 
 def load_settings(path: str | Path) -> dict[str, Any]:
@@ -42,8 +42,9 @@ def validate_settings(settings: Any) -> dict[str, Any]:
         if not isinstance(p['role_arn'], str) or not re.fullmatch(r'qcs::cam::uin/[0-9]+:role(?:Name)?/[A-Za-z0-9_-]+', p['role_arn']):
             raise ValueError('Invalid ordinary CAM role ARN')
         validate_destination(p['destination'])
-        if type(p['duration_seconds']) is not int or not 1 <= p['duration_seconds'] <= 300:
-            raise ValueError('Duration must be 1..300 seconds')
+        minimum = MIN_CREDENTIAL_MARGIN_SECONDS + 1
+        if type(p['duration_seconds']) is not int or not minimum <= p['duration_seconds'] <= 300:
+            raise ValueError(f'Duration must be {minimum}..300 seconds')
         ids = p['allowed_secret_ids']
         if not isinstance(ids, list) or not 1 <= len(ids) <= 10:
             raise ValueError('Configure 1..10 caller SecretIds per profile')

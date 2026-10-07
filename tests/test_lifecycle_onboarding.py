@@ -303,6 +303,37 @@ class FinalizeRefusalTests(unittest.TestCase):
         self.cloud.verify.assert_not_called()
         self.cloud.set_key_status.assert_not_called()
 
+    def test_a_third_surviving_key_blocks_the_cutover(self):
+        # Two prepares can pass the check-then-act slot guard in prepare; the cutover
+        # must refuse rather than report success while an unverified key stays live.
+        self.cloud.keys.return_value.append({"id": "rogue-id", "status": "Active", "description": ""})
+        with self.assertRaises(LifecycleError) as error:
+            self.run_finalize(self.ticket)
+        self.assertEqual(
+            str(error.exception),
+            "Target does not hold exactly the rotation pair; reconcile inventory before retiring anything",
+        )
+        self.cloud.verify.assert_not_called()
+        self.cloud.set_key_status.assert_not_called()
+
+    def test_a_third_key_appearing_during_verification_blocks_retirement(self):
+        def add_rogue_key_during_verification(*args):
+            self.cloud.keys.return_value.append({"id": "rogue-id", "status": "Active", "description": ""})
+
+        with self.assertRaises(LifecycleError) as error:
+            self.run_finalize(self.ticket, role_verifier=add_rogue_key_during_verification)
+        self.assertEqual(
+            str(error.exception),
+            "Target does not hold exactly the rotation pair; reconcile inventory before retiring anything",
+        )
+        self.cloud.set_key_status.assert_not_called()
+
+    def test_a_missing_replacement_key_blocks_retirement(self):
+        self.cloud.keys.return_value = [self.old_key]
+        with self.assertRaises(LifecycleError):
+            self.run_finalize(self.ticket)
+        self.cloud.set_key_status.assert_not_called()
+
     def test_unexpected_state_during_verification_never_retires(self):
         def break_old_key_state_during_verification(*args):
             self.old_key["status"] = "Unknown"
@@ -327,14 +358,82 @@ class FinalizeRefusalTests(unittest.TestCase):
 
 
 class RestoreOldTests(unittest.TestCase):
+    def setUp(self):
+        self.cloud, self.vault = MagicMock(), MagicMock()
+        self.old = source_account()
+        self.new = copy.deepcopy(self.old)
+        self.new["id"] = "new-account"
+        self.new["platformAccountProperties"]["TencentSecretId"] = "new-id"
+        self.vault.account.side_effect = lambda value: self.old if value == "old-account" else self.new
+        self.settings = allowed_settings()
+        self.ticket = Ticket(OPERATION, "123", "old-account", "new-account", "old-id", "new-id", "readonly")
+        self.old_key = {"id": "old-id", "status": "Inactive", "description": ""}
+        self.new_key = {"id": "new-id", "status": "Active", "description": "psm-rotation:" + OPERATION}
+        self.cloud.keys.return_value = [self.old_key, self.new_key]
+
+        def update_status(target, secret_id, status):
+            for key in self.cloud.keys.return_value:
+                if key["id"] == secret_id:
+                    key["status"] = status
+
+        self.cloud.set_key_status.side_effect = update_status
+
     def test_deleted_key_cannot_be_restored(self):
-        cloud = MagicMock()
-        cloud.keys.return_value = [{"id": "new-id", "status": "Active", "description": ""}]
+        self.cloud.keys.return_value = [self.new_key]
         with self.assertRaises(LifecycleError) as error:
-            restore_old(cloud, "123", "old-id")
+            restore_old(self.cloud, self.vault, self.ticket, self.settings)
         self.assertEqual(str(error.exception), "Cannot restore a deleted key")
-        cloud.keys.assert_called_once_with("123")
-        cloud.set_key_status.assert_not_called()
+        self.cloud.set_key_status.assert_not_called()
+
+    def test_a_third_key_blocks_restore(self):
+        self.cloud.keys.return_value.append({"id": "rogue-id", "status": "Active", "description": ""})
+        with self.assertRaises(LifecycleError) as error:
+            restore_old(self.cloud, self.vault, self.ticket, self.settings)
+        self.assertIn("exactly the rotation pair", str(error.exception))
+        self.cloud.set_key_status.assert_not_called()
+
+    def test_a_ticket_the_vault_does_not_bind_is_refused(self):
+        for field, value in [("TencentSecretId", "swapped-id"), ("TencentRoleProfile", "other")]:
+            self.new["platformAccountProperties"] = {
+                "TencentSecretId": "new-id",
+                "TencentRoleProfile": "readonly",
+            }
+            self.new["platformAccountProperties"][field] = value
+            with self.subTest(field=field), self.assertRaises(LifecycleError) as error:
+                restore_old(self.cloud, self.vault, self.ticket, self.settings)
+            self.assertEqual(str(error.exception), "Vault account binding changed")
+        self.cloud.keys.assert_not_called()
+        self.cloud.set_key_status.assert_not_called()
+
+    def test_an_incident_disabled_key_stays_disabled_when_the_bridge_disallows_it(self):
+        self.settings["profiles"]["readonly"]["allowed_secret_ids"] = ["new-id"]
+        with self.assertRaises(LifecycleError) as error:
+            restore_old(self.cloud, self.vault, self.ticket, self.settings)
+        self.assertEqual(str(error.exception), "Bridge configuration must authorize the old key first")
+        self.cloud.keys.assert_not_called()
+        self.cloud.set_key_status.assert_not_called()
+
+    def test_reactivation_reads_back_and_reports_the_new_state(self):
+        self.assertEqual(
+            restore_old(self.cloud, self.vault, self.ticket, self.settings),
+            {"status": "old-key-reactivated"},
+        )
+        self.cloud.set_key_status.assert_called_once_with("123", "old-id", "Active")
+        self.assertEqual(self.old_key["status"], "Active")
+
+    def test_reactivation_that_does_not_take_effect_is_not_reported_as_success(self):
+        self.cloud.set_key_status.side_effect = None
+        with self.assertRaises(LifecycleError) as error:
+            restore_old(self.cloud, self.vault, self.ticket, self.settings)
+        self.assertEqual(str(error.exception), "Reactivation outcome uncertain; reconcile inventory without automatic retry")
+
+    def test_an_already_active_old_key_is_a_no_op(self):
+        self.old_key["status"] = "Active"
+        self.assertEqual(
+            restore_old(self.cloud, self.vault, self.ticket, self.settings),
+            {"status": "old-key-already-active"},
+        )
+        self.cloud.set_key_status.assert_not_called()
 
 
 class RecoveryRefusalTests(unittest.TestCase):

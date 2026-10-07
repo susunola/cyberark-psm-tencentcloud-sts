@@ -15,6 +15,12 @@ class FederationError(Exception):
     pass
 
 
+# Credentials that expire within this window are unusable for a console session,
+# so they are refused rather than handed to the browser. configuration.py derives
+# its minimum duration from this value.
+MIN_CREDENTIAL_MARGIN_SECONDS = 30
+
+
 def validate_region(region: str) -> str:
     # Validate syntax without pretending to maintain a cloud availability catalogue.
     if not isinstance(region, str) or len(region) > 64 or not re.fullmatch(r'[a-z]{2}-[a-z]+(?:-[a-z0-9]+)*', region):
@@ -86,9 +92,13 @@ def assume_role(
     req.RoleArn, req.RoleSessionName, req.DurationSeconds = role_arn, session_name, duration
     try:
         response = client.AssumeRole(req)
-        if response.ExpiredTime <= int(time.time()) + 30:
-            raise FederationError('Temporary credentials expire too soon')
-        return {name: getattr(response.Credentials, name) for name in ('TmpSecretId', 'TmpSecretKey', 'Token')}
+        credentials = {name: getattr(response.Credentials, name) for name in ('TmpSecretId', 'TmpSecretKey', 'Token')}
+        expired_at = response.ExpiredTime
     except Exception:  # noqa: BLE001 - never forward error text
         # SDK exception text may contain sensitive request material; never forward it.
         raise FederationError('STS request failed') from None
+    # Checked outside the sanitizing handler so the operator sees the real cause
+    # instead of a generic STS failure.
+    if type(expired_at) is not int or expired_at <= int(time.time()) + MIN_CREDENTIAL_MARGIN_SECONDS:
+        raise FederationError('Temporary credentials expire too soon')
+    return credentials

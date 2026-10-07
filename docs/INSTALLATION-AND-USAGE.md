@@ -301,10 +301,10 @@ Recovery requires unique matching cloud/Vault records and valid new identity/met
 For rollback while the old key still exists:
 
 ```text
-python scripts/pamctl.py restore-old --ticket C:\Protected\TencentPSM\rotation.json --apply
+python scripts/pamctl.py restore-old --ticket C:\Protected\TencentPSM\rotation.json --settings C:\Protected\TencentPSM\settings.json --apply
 ```
 
-This restores key state only. Restore allowlists/PVWA permissions and retest; a deleted key cannot be recovered. Do not delete the old key during cutover.
+This rechecks the Vault bindings, the account scope and the bridge allowlist before reactivating, then reads the state back. It restores key state only; restore PVWA permissions and retest. A deleted key cannot be recovered. Do not delete the old key during cutover.
 
 <a id="advanced"></a>
 ## 9. Scheduled maintenance and multiple nodes

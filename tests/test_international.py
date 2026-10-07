@@ -41,6 +41,30 @@ class InternationalRoutingTests(unittest.TestCase):
             )
             self.assertEqual(client.call_args.args[2].httpProfile.endpoint, "sts.intl.tencentcloudapi.com")
 
+    def test_credentials_expiring_inside_the_margin_are_refused_with_the_real_cause(self):
+        # The margin lives outside the sanitizing handler, so the diagnosis survives.
+        with patch("tencentcloud.sts.v20180813.sts_client.StsClient") as client:
+            client.return_value.AssumeRole.return_value = SimpleNamespace(
+                ExpiredTime=int(time.time()) + 5,
+                Credentials=SimpleNamespace(TmpSecretId="AKID-TEST", TmpSecretKey="fake-key", Token="fake-token"),
+            )
+            with self.assertRaises(FederationError) as error:
+                assume_role(
+                    "test-id", "fake-key", "qcs::cam::uin/123:roleName/ReadOnly", "psm-test", 300, "ap-singapore"
+                )
+        self.assertEqual(str(error.exception), "Temporary credentials expire too soon")
+
+    def test_a_non_integer_expiry_is_refused(self):
+        with patch("tencentcloud.sts.v20180813.sts_client.StsClient") as client:
+            client.return_value.AssumeRole.return_value = SimpleNamespace(
+                ExpiredTime=None,
+                Credentials=SimpleNamespace(TmpSecretId="AKID-TEST", TmpSecretKey="fake-key", Token="fake-token"),
+            )
+            with self.assertRaises(FederationError):
+                assume_role(
+                    "test-id", "fake-key", "qcs::cam::uin/123:roleName/ReadOnly", "psm-test", 300, "ap-singapore"
+                )
+
     def test_management_cam_and_identity_endpoints(self):
         with (
             patch("tencentcloud.cam.v20190116.cam_client.CamClient") as cam,
