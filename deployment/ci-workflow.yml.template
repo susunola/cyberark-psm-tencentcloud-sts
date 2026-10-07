@@ -51,6 +51,133 @@ jobs:
       - run: python -m pip install -r requirements.lock.txt -r requirements-dev.txt
       # Disables one security guard at a time and requires the suite to fail.
       - run: python scripts/check_guard_mutations.py
+  windows-installer:
+    name: Windows installer, service and ACLs
+    runs-on: windows-2025
+    timeout-minutes: 25
+    env:
+      WINSW_URL: https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe
+      WINSW_SHA256: 05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da
+      INSTALL_DIR: C:\PSM-TencentCloud
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      # Run the installer for real: administrator rights, icacls DACLs, a WinSW service
+      # under LocalService, and the hash-pinned dependency install. Everything here is
+      # behaviour that cannot be observed from Linux or macOS.
+      - name: Fetch WinSW and confirm the pinned artifact
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri $env:WINSW_URL -OutFile "$env:RUNNER_TEMP\WinSW.exe" -UseBasicParsing
+          $actual = (Get-FileHash -Algorithm SHA256 "$env:RUNNER_TEMP\WinSW.exe").Hash.ToLower()
+          if ($actual -ne $env:WINSW_SHA256) {
+            throw "WinSW artifact changed upstream: expected $env:WINSW_SHA256 but got $actual. Review before updating the pin."
+          }
+      - name: Write a synthetic settings file
+        shell: pwsh
+        run: |
+          $settings = @{
+            profiles = @{
+              'tc-readonly' = @{
+                role_arn = 'qcs::cam::uin/100000000001:roleName/PSMAcceptance'
+                allowed_secret_ids = @('AKIDacceptanceprobe0001')
+                destination = 'https://console.tencentcloud.com/'
+                duration_seconds = 300
+                region = 'ap-singapore'
+              }
+            }
+          } | ConvertTo-Json -Depth 5
+          Set-Content -LiteralPath "$env:RUNNER_TEMP\settings.json" -Value $settings -Encoding utf8
+      - name: A tampered WinSW binary must be refused before anything is written
+        shell: pwsh
+        run: |
+          $wrong = '0' * 64
+          $refused = $false
+          try {
+            ./scripts/Install-Bridge.ps1 -PythonExe (Get-Command python).Source `
+              -WinSWExe "$env:RUNNER_TEMP\WinSW.exe" -WinSWSha256 $wrong `
+              -SettingsFile "$env:RUNNER_TEMP\settings.json" -InstallDir $env:INSTALL_DIR
+          } catch {
+            if ($_.Exception.Message -match 'checksum mismatch') { $refused = $true } else { throw }
+          }
+          if (-not $refused) { throw 'The installer accepted a mismatch between the WinSW hash and the file.' }
+          if (Test-Path $env:INSTALL_DIR) { throw 'The install directory exists despite the checksum refusal.' }
+      - name: Install the service and capture the installer output
+        shell: pwsh
+        run: |
+          $output = & ./scripts/Install-Bridge.ps1 -PythonExe (Get-Command python).Source `
+            -WinSWExe "$env:RUNNER_TEMP\WinSW.exe" -WinSWSha256 $env:WINSW_SHA256 `
+            -SettingsFile "$env:RUNNER_TEMP\settings.json" -InstallDir $env:INSTALL_DIR 2>&1
+          $output | Tee-Object -FilePath "$env:RUNNER_TEMP\installer.log"
+          if ($output -match 'without hash verification') {
+            throw 'The installer fell back to version pins instead of the hash-pinned lock.'
+          }
+          if (-not (Get-Service 'PSMTencentCloudSTS' -ErrorAction SilentlyContinue)) {
+            throw 'The service was not registered.'
+          }
+      - name: Assert the ACLs the installer is supposed to apply
+        shell: pwsh
+        run: |
+          $webConfig = Join-Path $env:INSTALL_DIR 'web.config.generated'
+          if (-not (Test-Path $webConfig)) { throw 'web.config.generated is missing.' }
+          $webAcl = (Get-Acl $webConfig).Access
+          $webPrincipals = $webAcl | ForEach-Object { $_.IdentityReference.Value }
+          Write-Output "web.config.generated access: $($webPrincipals -join ', ')"
+
+          # The proxy key lives here: the service account must not be able to read it.
+          foreach ($ace in $webAcl) {
+            $name = $ace.IdentityReference.Value
+            if ($name -match 'S-1-5-19' -or $name -match 'LOCAL SERVICE') {
+              throw "web.config.generated grants $name access; only SYSTEM and administrators may read it."
+            }
+            if ($name -match 'S-1-1-0' -or $name -match 'Everyone' -or $name -match 'S-1-5-32-545') {
+              throw "web.config.generated grants $name access, which is too broad."
+            }
+          }
+
+          # The service must still be able to read its own configuration and venv.
+          $dirAcl = (Get-Acl $env:INSTALL_DIR).Access | ForEach-Object { $_.IdentityReference.Value }
+          Write-Output "install directory access: $($dirAcl -join ', ')"
+          if (-not ($dirAcl | Where-Object { $_ -match 'S-1-5-19' -or $_ -match 'LOCAL SERVICE' })) {
+            throw 'The install directory does not grant LocalService read access, which the service needs.'
+          }
+      - name: The installed service answers an authenticated readiness probe
+        shell: pwsh
+        run: |
+          $xml = Get-Content -Raw (Join-Path $env:INSTALL_DIR 'PSMTencentCloudSTS.xml')
+          $proxyKey = ([regex]'name="PSM_TC_PROXY_KEY" value="([^"]+)"').Match($xml).Groups[1].Value
+          if (-not $proxyKey) { throw 'The service XML does not carry the proxy key.' }
+          $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8765/healthz' -TimeoutSec 5 `
+            -Headers @{'X-PSM-Bridge-Key'=$proxyKey; 'X-PSM-Authenticated-User'='ci-probe'}
+          if (($response.Content | ConvertFrom-Json).status -ne 'ok') { throw 'The readiness probe did not report ok.' }
+          $unauthenticated = 0
+          try { Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8765/healthz' -TimeoutSec 5 | Out-Null }
+          catch { $unauthenticated = [int]$_.Exception.Response.StatusCode }
+          Write-Output "unauthenticated status: $unauthenticated"
+          if ($unauthenticated -ne 403) { throw "Expected 403 without the proxy key, got $unauthenticated." }
+      - name: Uninstall keeps the files and stops the service
+        shell: pwsh
+        run: |
+          ./scripts/Uninstall-Bridge.ps1 -InstallDir $env:INSTALL_DIR
+          if (Get-Service 'PSMTencentCloudSTS' -ErrorAction SilentlyContinue) {
+            throw 'The service still exists after uninstall.'
+          }
+          foreach ($kept in @('settings.json', 'PSMTencentCloudSTS.xml', 'app.py')) {
+            if (-not (Test-Path (Join-Path $env:INSTALL_DIR $kept))) {
+              throw "$kept was removed by the uninstall; audit and rollback evidence must survive."
+            }
+          }
+      - name: Collect diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-installer-diagnostics
+          path: |
+            ${{ runner.temp }}/installer.log
+            C:\PSM-TencentCloud\logs\*
+          if-no-files-found: ignore
   shared-tokens:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

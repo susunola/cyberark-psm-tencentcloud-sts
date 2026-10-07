@@ -34,6 +34,13 @@ brew install powershell            # macOS
 python -m unittest tests.test_service_config -v
 ```
 
+`Install-Bridge.ps1` is executed by the `windows-installer` CI job on a Windows
+Server 2025 runner: it installs the service, asserts the ACLs by reading them, and
+uninstalls again. Run that job's steps in a local Windows VM when iterating on the
+installer; they are not reproducible on macOS or Linux. What even a Windows host
+cannot cover is IIS Windows Authentication and the PSM WebForm component - the
+latter needs a licensed CyberArk installation.
+
 Three deployment scripts cannot be executed anywhere but their target:
 `Install-Bridge.ps1` needs administrator rights, `icacls.exe`, WinSW and a
 machine-wide Python; `Configure-SharedTokens.ps1` needs `icacls.exe` and the
