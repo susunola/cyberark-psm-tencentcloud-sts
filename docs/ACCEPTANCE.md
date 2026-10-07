@@ -14,6 +14,7 @@ The local suite includes real loopback HTTP requests to Waitress, with mocked ST
 | IIS authentication | Anonymous denial, genuine Windows identity, header overwrite, pipeline ordering | Pending environment |
 | PSM launch | PAM/PSM version, browser/driver version, imported component export | Pending environment |
 | Cloud role login | CAM trust, AssumeRole policy, console-enabled role, destination/identity evidence | Pending environment |
+| Identity binding | `GetCallerIdentity.UserId` equals the caller UIN for the credential kind `pam/cloud.py` verifies | **Partially verified 2026-10-07** against `sts.intl.tencentcloudapi.com` with an international CAM sub-user caller: `Type=CAMUser`, `UserId=200037920937` equals the caller UIN, so the comparison in `verify()` holds for the permanent caller keys it is used with. It would not hold for temporary credentials, whose `UserId` is `roleId:roleSessionName`; `verify()` must not be called with those. |
 | Cloud restrictions | Invalid/disabled key, unauthorized role, duration, MFA/network conditions | Pending environment |
 | Session isolation | Two users and two roles, separate cookies and processes | Pending environment |
 | Recording | PSM recording ID/playback and audit correlation | Pending environment |
@@ -25,6 +26,8 @@ The local suite includes real loopback HTTP requests to Waitress, with mocked ST
 ## Test steps
 
 1. Record tester, date, operating system, PAM/PSM version, Web framework, browser/driver, Python, WinSW, role ARN (sanitize for public records), source commit and configuration revision.
+
+`scripts/acceptance_live.py` performs the read-only part of this ledger (caller identity and AssumeRole durations) against the real international endpoint, reporting credential names and error codes but never their values. Run it before the PSM work so a broken trust relationship or an unacceptable duration is found early.
 2. Use a dedicated read-only role and test caller. Confirm destination identity and allowed operations. Verify disallowed resource operations fail.
 3. Retry with a bad/disabled key, missing trust and missing AssumeRole permissions; each must fail without issuing a usable login. Restore test configuration afterwards.
 4. Attempt a different profile with the same caller SecretId, duplicate form fields, replayed CSRF, anonymous proxy access and forged headers; confirm denial.

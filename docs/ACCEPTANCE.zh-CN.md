@@ -12,6 +12,7 @@
 | IIS 认证 | 匿名拒绝、真实 Windows 身份、头覆盖、管线顺序 | 待现场 |
 | PSM 连接 | PAM/PSM、框架、浏览器/驱动、组件导出 | 待现场 |
 | 腾讯云登录 | 角色信任、权限、允许控制台登录、身份核对 | 待现场 |
+| 身份绑定 | `GetCallerIdentity.UserId` 是否等于 `pam/cloud.py` 校验的调用方 UIN | **部分已验证（2026-10-07）**：以国际站 CAM 子用户调用方对 `sts.intl.tencentcloudapi.com` 实测，`Type=CAMUser`、`UserId=200037920937` 等于调用方 UIN，故 `verify()` 的比较对其实际使用的长期调用密钥成立。对临时凭据不成立（其 `UserId` 为 `roleId:roleSessionName`），不得以临时凭据调用 `verify()`。 |
 | 失败场景 | 错误/禁用密钥、无授权角色、MFA/网络限制 | 待现场 |
 | 隔离 | 双用户双角色、并发和连续会话 Cookie | 待现场 |
 | 录屏/清理 | 回放记录、审计关联、断开/超时后进程退出 | 待现场 |
