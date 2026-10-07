@@ -1,0 +1,8 @@
+# Pinned developer tooling for local use and CI. Runtime pins live in requirements.lock.txt.
+# Regenerate intentionally, never automatically: these tools define the quality gate.
+mypy==1.20.2
+pytest==8.4.2
+pytest-cov==7.1.0
+pytest-timeout==2.4.0
+ruff==0.16.10
+types-requests==2.33.0.20261006

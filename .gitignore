@@ -1,23 +1,37 @@
 __pycache__/
 *.py[cod]
+
+# Virtual environments and tooling caches
 .venv/
 venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+.coverage-html/
+htmlcov/
+
+# Local runtime state and secrets; never commit these
 .env
 .env.*
 settings.json
+shared-secrets.json
+maintenance-state/
 *.log
 *.pem
 *.key
 *.pfx
 *.zip
-.DS_Store
+
+# Generated deployment and export artifacts
 dist/
 web.config.generated
 PSMTencentCloudSTS.xml
-shared-secrets.json
-maintenance-state/
 rotation*.json
 connection*.json
 playback*.json
 *.jsonl
 inventory*.json
+
+.DS_Store

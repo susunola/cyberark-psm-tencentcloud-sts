@@ -1,60 +1,111 @@
 """Tencent Cloud international role-console federation. No credential logging."""
+
 import base64
 import hashlib
 import hmac
 import re
 import secrets
 import time
+from typing import Any
 from urllib.parse import urlencode, urlsplit
+
+MAX_DESTINATION_LENGTH = 2048
+MIN_NONCE = 10000
+MAX_NONCE = 100000000
+FEDERATION_HOST = "www.tencentcloud.com"
+LOGIN_PATH = "/login/roleAccessCallback"
+ACTION = "roleLogin"
+ALGORITHM = "sha256"
 
 
 class FederationError(Exception):
-    pass
+    """Raised when federation input or STS interaction is invalid."""
 
 
-def validate_destination(url):
-    if not isinstance(url, str) or not url or len(url) > 2048:
-        raise FederationError('Invalid console destination')
+def validate_destination(url: str) -> str:
+    if not isinstance(url, str) or not url or len(url) > MAX_DESTINATION_LENGTH:
+        raise FederationError("Invalid console destination")
     try:
-        p = urlsplit(url)
-        valid = (p.scheme == 'https' and p.hostname == 'console.tencentcloud.com'
-                 and p.port in (None, 443) and not p.username and not p.password)
+        parsed = urlsplit(url)
+        valid = (
+            parsed.scheme == "https"
+            and parsed.hostname == "console.tencentcloud.com"
+            and parsed.port in (None, 443)
+            and not parsed.username
+            and not parsed.password
+        )
     except (ValueError, TypeError):
         valid = False
-    if not valid or any(ord(c) < 33 for c in url) or '\\' in url:
-        raise FederationError('Invalid console destination')
+    if not valid or any(ord(c) < 33 for c in url) or "\\" in url:
+        raise FederationError("Invalid console destination")
     return url
 
 
-def login_url(credentials, destination, *, now=None, nonce=None):
+def _required_credential(credentials: dict[str, Any], name: str) -> str:
+    value = credentials.get(name)
+    if not isinstance(value, str) or not value:
+        raise FederationError("Missing temporary credentials")
+    return value
+
+
+def login_url(
+    credentials: dict[str, Any],
+    destination: str,
+    *,
+    now: int | None = None,
+    nonce: int | None = None,
+) -> str:
     validate_destination(destination)
     now = int(time.time()) if now is None else now
-    nonce = secrets.randbelow(99990001) + 10000 if nonce is None else nonce
-    if type(nonce) is not int or not 10000 <= nonce <= 100000000:
-        raise FederationError('Invalid nonce')
+    nonce = secrets.randbelow(MAX_NONCE - MIN_NONCE + 1) + MIN_NONCE if nonce is None else nonce
+    if type(nonce) is not int or not MIN_NONCE <= nonce <= MAX_NONCE:
+        raise FederationError("Invalid nonce")
     if type(now) is not int or now <= 0:
-        raise FederationError('Invalid timestamp')
-    sid, key, token = (credentials.get(n) for n in ('TmpSecretId', 'TmpSecretKey', 'Token'))
-    if not all(isinstance(x, str) and x for x in (sid, key, token)):
-        raise FederationError('Missing temporary credentials')
-    if not re.fullmatch(r'[A-Za-z0-9_-]+', sid):
-        raise FederationError('Invalid temporary SecretId')
+        raise FederationError("Invalid timestamp")
+    sid = _required_credential(credentials, "TmpSecretId")
+    key = _required_credential(credentials, "TmpSecretKey")
+    token = _required_credential(credentials, "Token")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", sid):
+        raise FederationError("Invalid temporary SecretId")
     # Tencent's callback signs only these four unencoded parameters, in this order.
-    canonical = (f'GETwww.tencentcloud.com/login/roleAccessCallback?action=roleLogin'
-                 f'&nonce={nonce}&secretId={sid}&timestamp={now}')
+    canonical = (
+        f"GET{FEDERATION_HOST}{LOGIN_PATH}?action={ACTION}&nonce={nonce}&secretId={sid}&timestamp={now}"
+    )
     signature = base64.b64encode(hmac.new(key.encode(), canonical.encode(), hashlib.sha256).digest()).decode()
-    return 'https://www.tencentcloud.com/login/roleAccessCallback?' + urlencode({
-        'algorithm': 'sha256', 'secretId': sid, 'token': token,
-        'nonce': nonce, 'timestamp': now, 'signature': signature, 's_url': destination})
+    return (
+        "https://"
+        + FEDERATION_HOST
+        + LOGIN_PATH
+        + "?"
+        + urlencode(
+            {
+                "algorithm": ALGORITHM,
+                "secretId": sid,
+                "token": token,
+                "nonce": nonce,
+                "timestamp": now,
+                "signature": signature,
+                "s_url": destination,
+            }
+        )
+    )
 
 
-def assume_role(secret_id, secret_key, role_arn, session_name, duration, region):
+def assume_role(
+    secret_id: str,
+    secret_key: str,
+    role_arn: str,
+    session_name: str,
+    duration: int,
+    region: str,
+) -> dict[str, str]:
     # Explicit credentials: no environment credential fallback or debug logging.
     from tencentcloud.common import credential
     from tencentcloud.common.profile.client_profile import ClientProfile
     from tencentcloud.common.profile.http_profile import HttpProfile
-    from tencentcloud.sts.v20180813 import sts_client, models
-    http = HttpProfile(endpoint='sts.intl.tencentcloudapi.com', reqTimeout=15)
+    from tencentcloud.sts.v20180813 import models, sts_client
+
+    http = HttpProfile(endpoint="sts.intl.tencentcloudapi.com", reqTimeout=15)
     profile = ClientProfile(httpProfile=http)
     client = sts_client.StsClient(credential.Credential(secret_id, secret_key), region, profile)
     req = models.AssumeRoleRequest()
@@ -62,8 +113,10 @@ def assume_role(secret_id, secret_key, role_arn, session_name, duration, region)
     try:
         response = client.AssumeRole(req)
         if response.ExpiredTime <= int(time.time()) + 30:
-            raise FederationError('Temporary credentials expire too soon')
-        return {name: getattr(response.Credentials, name) for name in ('TmpSecretId', 'TmpSecretKey', 'Token')}
-    except Exception:
+            raise FederationError("Temporary credentials expire too soon")
+        return {
+            name: getattr(response.Credentials, name) for name in ("TmpSecretId", "TmpSecretKey", "Token")
+        }
+    except Exception:  # noqa: BLE001 - SDK text may echo request credentials
         # SDK exception text may contain sensitive request material; never forward it.
-        raise FederationError('STS request failed') from None
+        raise FederationError("STS request failed") from None

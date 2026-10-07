@@ -1,0 +1,173 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cyberark-psm-tencentcloud-sts"
+dynamic = ["version"]
+description = "CyberArk PSM connector bridge for Tencent Cloud STS federation"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+authors = [
+    {name = "susunola"},
+]
+keywords = ["cyberark", "pam", "tencent-cloud", "sts", "federation", "cis"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "Flask>=3.1,<4",
+    "waitress>=3,<4",
+    "tencentcloud-sdk-python-sts>=3,<4",
+    "tencentcloud-sdk-python-cam>=3,<4",
+    "tencentcloud-sdk-python-cvm>=3,<4",
+    "requests>=2.32,<3",
+    "redis>=5,<9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "pytest-cov>=6,<8",
+    "pytest-timeout>=2.3",
+    "ruff>=0.16,<0.17",
+    "mypy>=1.11,<2",
+    "types-requests",
+    "pre-commit>=4,<5",
+]
+
+[project.scripts]
+psm-tencentcloud-sts = "app:main"
+
+[tool.hatch.version]
+path = "version.py"
+pattern = "VERSION = ['\"](?P<version>[^'\"]+)['\"]"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+include = [
+    "app.py",
+    "configuration.py",
+    "federation.py",
+    "runtime.py",
+    "security.py",
+    "version.py",
+    "pam/",
+]
+exclude = [
+    "tests/",
+    "scripts/",
+    "deployment/",
+    "docs/",
+    "*.example.json",
+    "*.template.txt",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+    "--cov=.",
+    "--cov-report=term-missing",
+    "--cov-report=html:.coverage-html",
+    "--cov-fail-under=95",
+]
+timeout = 60
+markers = [
+    "redis: requires a running Redis server (skipped by default)",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["."]
+omit = [
+    "scripts/*",
+    "deployment/*",
+    "tests/*",
+    ".venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+show_missing = true
+skip_covered = false
+fail_under = 95
+
+[tool.ruff]
+target-version = "py310"
+line-length = 110
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # Pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "W",   # pycodestyle warnings
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "PLW", # pylint warnings
+    "PLR", # pylint refactor
+    "S",   # flake8-bandit (security)
+    "BLE", # blind-except
+    "RET", # return statements
+    "RUF", # ruff-specific
+]
+ignore = [
+    "S101",    # asserts allowed in tests
+    "S311",    # non-cryptographic pseudo-randomness is intentional in unit tests
+    "S603",    # subprocess calls in scripts/tests are intentional
+    "PLR2004", # magic values are allowed where they are self-documenting
+    "PLR0913", # call signatures mirror cloud SDK shapes and are part of the tested API
+    "PLR0917", # positional-only adoption is intentionally avoided for SDK-shaped call sites
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "PLR0915", "PLR2004"]
+"scripts/*" = ["S603", "S607", "PLR2004"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+ignore_missing_imports = true
+# Third-party cloud/redis/wsgi libraries ship no py.typed marker.
+disable_error_code = ["import-untyped"]
+exclude = [
+    "scripts",
+    "deployment",
+    ".venv",
+]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
