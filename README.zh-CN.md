@@ -119,7 +119,11 @@ flowchart TB
 - `cam-assume-policy.example.json`：调用子用户的 AssumeRole 权限示例，替换账号和角色后使用。
 - `WebFormFields.template.txt`：PSM Web 凭据注入映射，必须与安装版本核对。
 - `requirements.in`：依赖范围；部署使用本包 `requirements.lock.txt` 的实际测试版本。
-- `tests/test_bridge.py`：离线自动化验证，无真实凭据。
+- `requirements-dev.txt`：质量门禁使用的固定版本 lint、类型检查和测试工具。
+- `pyproject.toml`：打包元数据，以及 ruff、mypy、pytest 和覆盖率配置。
+- `.pre-commit-config.yaml`：可选的 git 钩子，固定到上游 tag，与 CI 质量任务一致。
+- `pam/`：与版本无关的云生命周期与 PVWA REST 组件，供 `scripts/pamctl.py` 使用。
+- `tests/`：离线自动化验证，使用模拟凭据、模拟云接口和本地回环 HTTP。
 
 ## 腾讯云配置
 
@@ -173,13 +177,20 @@ flowchart TB
 
 ## 验证
 
-在完整源码目录，按手册创建管理用 `.venv` 后执行离线测试：
+在完整源码目录，按手册创建管理用 `.venv` 后执行完整质量门禁：
 
 ```powershell
-& .\.venv\Scripts\python.exe -m unittest discover -s tests -v
+& .\.venv\Scripts\python.exe -m ruff check .
+& .\.venv\Scripts\python.exe -m ruff format --check .
+& .\.venv\Scripts\python.exe -m mypy app.py configuration.py federation.py runtime.py security.py version.py pam/
+& .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-测试覆盖签名与 URL 编码、目的域名约束、代理认证边界、CSRF 重放、角色及调用者白名单、STS 失败信息脱敏。使用模拟 STS，不证明云端登录兼容性。
+`pytest` 会执行 `pyproject.toml` 中声明的覆盖率阈值（95%，当前实测 99.6%），覆盖率下降会直接使门禁失败。开发过程中可用 `--no-cov` 跳过；`python -m unittest discover -s tests -v` 同样可运行测试，CI 的系统/Python 矩阵即使用该方式。
+
+CI 另设独立质量任务（ruff 检查、ruff 格式校验、严格 mypy、带覆盖率门禁的 pytest），以及针对共享令牌后端的真实 Redis 任务。
+
+测试覆盖签名与 URL 编码、目的域名约束、代理认证边界、CSRF 重放、角色及调用者白名单、SDK 请求构造、凭据过期、各 CLI/API 边界的校验与脱敏、两阶段轮换状态迁移，以及失败信息脱敏。使用模拟 STS 与模拟云接口，不证明云端登录兼容性。
 
 现场验收：正确调用密钥/角色登录后核对角色身份；错误密钥、无授权角色明确失败；尝试修改表单角色、重放表单、绕过代理应被拒绝；检查 Cookie 隔离和两名用户连续会话；确认 STS 审计标签可与 PSM 记录关联；确认录屏可回放、超时和退出后浏览器清理；检查实际控制台会话有效期；检查浏览器及所有层日志不会泄露长期密钥或临时登录链接。完成后才标为生产可用。
 

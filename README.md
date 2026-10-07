@@ -120,8 +120,12 @@ Version 0.3.0 adds `scripts/pamctl.py`: CAM/CVM discovery, guest onboarding prop
 | `settings.example.json` | Server-side role configuration; users cannot submit arbitrary roles or destinations |
 | `cam-assume-policy.example.json` | Caller sub-user permission example; replace the account and role |
 | `WebFormFields.template.txt` | Credential injection mapping; verify against the installed PSM version |
-| `requirements.in` / `requirements.lock.txt` | Dependency ranges and tested versions |
-| `tests/test_bridge.py` | Offline tests using mock credentials and STS calls |
+| `requirements.in` / `requirements.lock.txt` | Runtime dependency ranges and tested versions |
+| `requirements-dev.txt` | Pinned lint, type-check and test tooling used by the quality gate |
+| `pyproject.toml` | Packaging metadata plus ruff, mypy, pytest and coverage configuration |
+| `.pre-commit-config.yaml` | Optional git hooks pinned to upstream tags; mirrors the CI quality job |
+| `pam/` | Version-neutral cloud lifecycle and PVWA REST components used by `scripts/pamctl.py` |
+| `tests/` | Offline tests using mock credentials, mocked cloud APIs and loopback HTTP |
 
 ## Tencent Cloud configuration
 
@@ -175,13 +179,20 @@ International endpoints and ordinary CAM roles are implemented; mainland console
 
 ## Validation
 
-Run offline tests from the full-source directory after creating the management `.venv` described in the manual:
+Run the quality gate from the full-source directory after creating the management `.venv` described in the manual:
 
 ```powershell
-& .\.venv\Scripts\python.exe -m unittest discover -s tests -v
+& .\.venv\Scripts\python.exe -m ruff check .
+& .\.venv\Scripts\python.exe -m ruff format --check .
+& .\.venv\Scripts\python.exe -m mypy app.py configuration.py federation.py runtime.py security.py version.py pam/
+& .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Tests cover signing and encoding, destination restrictions, proxy authentication, CSRF replay, role/caller allowlists, SDK request construction, expiring credentials, and redacted errors. Mock STS calls do not establish live login compatibility.
+`pytest` enforces the coverage threshold declared in `pyproject.toml` (95%, currently measured at 99.6%), so a change that removes test coverage fails the gate. Use `--no-cov` while iterating; `python -m unittest discover -s tests -v` also runs the suite, which is what CI's OS/Python matrix uses.
+
+CI additionally runs a dedicated quality job (ruff lint, ruff format check, strict mypy, pytest with coverage) plus a real Redis job for the shared-token backend.
+
+Tests cover signing and encoding, destination restrictions, proxy authentication, CSRF replay, role/caller allowlists, SDK request construction, expiring credentials, validation and sanitization of every CLI/API boundary, staged-rotation state transitions, and redacted errors. Mock STS and cloud calls do not establish live login compatibility.
 
 For environment acceptance, verify role identity after login and failures for invalid keys or unauthorized roles. Reject altered profiles, replayed forms, and proxy bypasses. Check cookie isolation across users, STS audit label correlation, recording playback, browser cleanup after timeout/exit, and actual console session lifetime. Inspect browser, proxy, and service diagnostics for long-term key or temporary URL exposure. Mark the integration production-ready only after acceptance passes.
 

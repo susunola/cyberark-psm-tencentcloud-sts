@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Add `pyproject.toml` with packaging metadata and enforced ruff, strict mypy, pytest and coverage configuration; add a pinned `requirements-dev.txt` for the quality gate.
+- Add a CI quality job (ruff lint, ruff format check, strict mypy, pytest with coverage gate) and an optional `.pre-commit-config.yaml` pinned to upstream tags; sync the shipped workflow template.
+- Add type annotations and `TokenStoreLike` structural typing across the bridge, federation, security and `pam/` modules; strict mypy now passes with no `Any` leaks.
+- Replace inline magic numbers, duplicated probe-label maps and repeated parser construction with named constants, shared helpers and per-command CLI handlers; split `scripts/pamctl.py` and `scripts/build_release.py` into testable functions.
+- Normalize formatting across source, scripts and tests; expand `.gitignore` to cover coverage/tooling caches and generated export artifacts.
+- Document the quality gate, code conventions and sanitized-error policy in the contribution guide and both READMEs.
+- Expand the offline suite from 111 to 378 tests, covering request construction, validation, sanitization, pagination, token backends, maintenance locking, staged-rotation refusals and both token stores; measured total coverage is 99.6% and the enforced gate is now 95%.
+- Fix validation order so invalid input never triggers a cloud call: `pam.cloud` now validates the key transition before `assert_subuser`, and every region before listing CAM users.
+- Fix `pam.audit.event` so caller fields can no longer overwrite `schema_version` or `timestamp`, keeping emitted records unforgeable at the schema level.
+- Fix non-string input handling: `pam.vault` account IDs, connect ticket fields and non-object search results now raise `ValueError`/`VaultError` instead of `TypeError`/`AttributeError`, and both token stores validate capacity and TTL type (rejecting booleans and numeric strings).
+
 ## 0.5.1 — 2026-10-06
 
 - Target Tencent Cloud international: sign the international role callback, allow only the international console destination and update CSP.
