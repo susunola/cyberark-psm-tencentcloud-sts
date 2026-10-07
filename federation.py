@@ -10,6 +10,8 @@ import time
 from collections.abc import Mapping
 from urllib.parse import urlencode, urlsplit
 
+from validate import MAX_NONCE, MAX_SECRET_ID_LEN, MIN_NONCE, is_identifier
+
 
 class FederationError(Exception):
     pass
@@ -51,15 +53,15 @@ def login_url(
 ) -> str:
     validate_destination(destination)
     now = int(time.time()) if now is None else now
-    nonce = secrets.randbelow(99990001) + 10000 if nonce is None else nonce
-    if type(nonce) is not int or not 10000 <= nonce <= 100000000:
+    nonce = secrets.randbelow(MAX_NONCE - MIN_NONCE + 1) + MIN_NONCE if nonce is None else nonce
+    if type(nonce) is not int or not MIN_NONCE <= nonce <= MAX_NONCE:
         raise FederationError('Invalid nonce')
     if type(now) is not int or now <= 0:
         raise FederationError('Invalid timestamp')
     sid, key, token = (credentials.get(n) for n in ('TmpSecretId', 'TmpSecretKey', 'Token'))
     if not all(isinstance(x, str) and x for x in (sid, key, token)):
         raise FederationError('Missing temporary credentials')
-    if not re.fullmatch(r'[A-Za-z0-9_-]+', sid or ''):
+    if not is_identifier(sid or '', 1, MAX_SECRET_ID_LEN):
         raise FederationError('Invalid temporary SecretId')
     # Tencent's callback signs only these four unencoded parameters, in this order.
     canonical = (f'GETwww.tencentcloud.com/login/roleAccessCallback?action=roleLogin'

@@ -102,7 +102,7 @@ class DeliveryTests(unittest.TestCase):
         root=Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as folder:
             destination=Path(folder);(destination/'pam').mkdir()
-            for name in ('app.py','federation.py','configuration.py','security.py','runtime.py','version.py'):
+            for name in ('app.py','federation.py','configuration.py','security.py','runtime.py','version.py','validate.py'):
                 shutil.copyfile(root/name,destination/name)
             for name in ('__init__.py','audit.py'):shutil.copyfile(root/'pam'/name,destination/'pam'/name)
             result=subprocess.run([sys.executable,'-c','import app; import runtime'],cwd=destination,capture_output=True,text=True,check=False)

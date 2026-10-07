@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import uuid
 from collections.abc import Iterator
 from typing import Any, TextIO
@@ -12,6 +11,7 @@ from urllib.parse import quote
 
 from pam.onboarding import validate_account
 from pam.vault import VaultError
+from validate import MAX_IDENTIFIER_LEN, is_identifier
 
 
 def export_records(vault: Any, resource: str, limit: int = 100, max_pages: int = 100) -> Iterator[dict[str, Any]]:
@@ -108,8 +108,7 @@ def preflight(
     component: str,
 ) -> dict[str, Any]:
     if (
-        not isinstance(component, str)
-        or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', component)
+        not is_identifier(component, 1, MAX_IDENTIFIER_LEN)
         or not safe
         or not platform
     ):

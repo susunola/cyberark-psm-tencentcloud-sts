@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from version import VERSION  # noqa: E402
 
-FILES = ['app.py', 'configuration.py', 'federation.py', 'security.py', 'runtime.py', 'version.py', 'README.md', 'README.zh-CN.md',
+FILES = ['app.py', 'configuration.py', 'federation.py', 'security.py', 'runtime.py', 'validate.py', 'version.py', 'README.md', 'README.zh-CN.md',
          'requirements.in', 'requirements.lock.txt', 'requirements.lock.hashes.txt',
          'requirements-dev.txt', 'pyproject.toml',
          '.pre-commit-config.yaml', 'WebFormFields.template.txt',

@@ -50,6 +50,7 @@ py-modules = [
     "federation",
     "runtime",
     "security",
+    "validate",
     "version",
 ]
 packages = ["pam"]
@@ -113,7 +114,7 @@ known-first-party = ["app", "configuration", "federation", "runtime", "security"
 
 [tool.mypy]
 python_version = "3.11"
-files = ["app.py", "configuration.py", "federation.py", "runtime.py", "security.py", "version.py", "pam", "scripts"]
+files = ["app.py", "configuration.py", "federation.py", "runtime.py", "security.py", "validate.py", "version.py", "pam", "scripts"]
 ignore_missing_imports = true
 # waitress/redis/tencentcloud ship no py.typed marker; do not fail the check on that alone.
 disable_error_code = ["import-untyped"]
@@ -137,7 +138,7 @@ ignore_missing_imports = true
 
 [tool.coverage.run]
 branch = true
-source = ["app", "configuration", "federation", "runtime", "security", "version", "pam"]
+source = ["app", "configuration", "federation", "runtime", "security", "validate", "version", "pam"]
 omit = ["tests/*", "scripts/*"]
 
 [tool.coverage.report]

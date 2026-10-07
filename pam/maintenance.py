@@ -13,6 +13,7 @@ from federation import assume_role
 from pam.cloud import uin
 from pam.files import private_output, save_json
 from pam.lifecycle import prepare
+from validate import MAX_ACCOUNT_FIELD_LEN, is_identifier, is_readable_text
 
 
 def validate_jobs(configuration: Any) -> list[dict[str, str]]:
@@ -31,21 +32,18 @@ def validate_jobs(configuration: Any) -> list[dict[str, str]]:
             raise ValueError('Maintenance fields must be nonempty strings')
         reserved = re.fullmatch(r'(?i:CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])', job['id'])
         if (
-            not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', job['id'])
+            not is_identifier(job['id'], 1, 80)
             or job['id'].casefold() in identifiers
             or reserved
         ):
             raise ValueError('Use distinct safe job IDs')
         job['target_uin'] = str(uin(job['target_uin']))
         if (
-            not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', job['account'])
-            or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', job['profile'])
+            not is_identifier(job['account'], 1, 128)
+            or not is_identifier(job['profile'], 1, 80)
         ):
             raise ValueError('Invalid maintenance account/profile')
-        if any(
-            len(job[k]) > 1024 or not job[k].strip() or any(ord(c) < 32 for c in job[k])
-            for k in ('safe', 'platform')
-        ):
+        if any(not is_readable_text(job[k], MAX_ACCOUNT_FIELD_LEN) for k in ('safe', 'platform')):
             raise ValueError('Invalid maintenance scope')
         if job['action'] not in ('verify-cam', 'prepare-key'):
             raise ValueError('Maintenance cannot finalize, delete, approve or reset credentials')

@@ -8,20 +8,16 @@ from pathlib import Path
 from typing import Any
 
 from federation import MIN_CREDENTIAL_MARGIN_SECONDS, validate_destination, validate_region
+from validate import MAX_CONFIG_BYTES, is_identifier, unique_json_object
 
 
 def load_settings(path: str | Path) -> dict[str, Any]:
     def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError('Duplicate configuration field')
-            result[key] = value
-        return result
+        return unique_json_object(pairs, message='Duplicate configuration field')
 
     with Path(path).open('rb') as source:
-        raw = source.read(1024 * 1024 + 1)
-    if len(raw) > 1024 * 1024:
+        raw = source.read(MAX_CONFIG_BYTES + 1)
+    if len(raw) > MAX_CONFIG_BYTES:
         raise ValueError('Configuration exceeds size limit')
     return validate_settings(json.loads(raw.decode('utf-8-sig'), object_pairs_hook=unique_object))
 
@@ -35,7 +31,7 @@ def validate_settings(settings: Any) -> dict[str, Any]:
     seen_ids: set[str] = set()
     required = {'role_arn', 'allowed_secret_ids', 'destination', 'duration_seconds', 'region'}
     for name, p in profiles.items():
-        if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', name):
+        if not is_identifier(name, 1, 80):
             raise ValueError('Invalid profile name')
         if not isinstance(p, dict) or set(p) != required:
             raise ValueError('Invalid profile fields')
@@ -49,7 +45,7 @@ def validate_settings(settings: Any) -> dict[str, Any]:
         if not isinstance(ids, list) or not 1 <= len(ids) <= 10:
             raise ValueError('Configure 1..10 caller SecretIds per profile')
         for sid in ids:
-            if not isinstance(sid, str) or not re.fullmatch(r'[A-Za-z0-9_-]{2,256}', sid) or 'REPLACE' in sid:
+            if not is_identifier(sid, 2, 256) or 'REPLACE' in sid:
                 raise ValueError('Configure real caller SecretIds')
             if sid in seen_ids:
                 raise ValueError('Each caller SecretId must belong to one profile only')

@@ -12,6 +12,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from validate import (
+    DEFAULT_TOKEN_CAPACITY,
+    DEFAULT_TOKEN_TTL_SECONDS,
+    MAX_SHARED_CONFIG_BYTES,
+    is_identifier,
+    unique_json_object,
+)
+
 
 class TokenStoreError(Exception):
     """Backend failure; callers must fail closed without logging connection details."""
@@ -46,8 +54,8 @@ def _valid_ttl(ttl: object) -> bool:
 class TokenStore:
     def __init__(
         self,
-        capacity: int = 1000,
-        ttl: int = 120,
+        capacity: int = DEFAULT_TOKEN_CAPACITY,
+        ttl: int = DEFAULT_TOKEN_TTL_SECONDS,
         clock: Callable[[], float] | None = None,
         identity_capacity: int | None = None,
     ) -> None:
@@ -168,11 +176,11 @@ class RedisTokenStore:
         self,
         client: Any,
         namespace: str = 'psm-tencent',
-        capacity: int = 1000,
-        ttl: int = 120,
+        capacity: int = DEFAULT_TOKEN_CAPACITY,
+        ttl: int = DEFAULT_TOKEN_TTL_SECONDS,
         identity_capacity: int | None = None,
     ) -> None:
-        if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', namespace):
+        if not is_identifier(namespace, 1, 80):
             raise ValueError('Invalid token namespace')
         if not _valid_capacity(capacity) or not _valid_ttl(ttl):
             raise ValueError('Invalid token capacity/TTL')
@@ -253,17 +261,12 @@ def shared_environment(environment: Mapping[str, str]) -> dict[str, str]:
     if not path:
         return dict(environment)
     with Path(path).open('rb') as source:
-        raw = source.read(65537)
-    if len(raw) > 65536:
+        raw = source.read(MAX_SHARED_CONFIG_BYTES + 1)
+    if len(raw) > MAX_SHARED_CONFIG_BYTES:
         raise ValueError('Shared configuration exceeds size limit')
 
     def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError('Duplicate shared configuration field')
-            result[key] = value
-        return result
+        return unique_json_object(pairs, message='Duplicate shared configuration field')
 
     config = json.loads(raw.decode('utf-8-sig'), object_pairs_hook=unique)
     if not isinstance(config, dict) or set(config) != {'redis_url', 'namespace', 'session_key', 'ca_bundle'}:

@@ -8,6 +8,7 @@ from typing import Any
 
 from federation import assume_role
 from pam.cloud import KEY_STATUSES, uin
+from validate import MAX_ACCOUNT_FIELD_LEN, is_identifier, is_readable_text
 
 
 class LifecycleError(Exception):
@@ -30,11 +31,11 @@ class Ticket:
         object.__setattr__(self, 'target_uin', str(uin(self.target_uin)))
         for field in ('old_account', 'new_account'):
             value = getattr(self, field)
-            if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', value):
+            if not is_identifier(value, 1, 128):
                 raise ValueError('Invalid ticket account')
         for field in ('old_secret_id', 'new_secret_id'):
             validate_identifier(getattr(self, field))
-        if not isinstance(self.profile, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', self.profile):
+        if not is_identifier(self.profile, 1, 80):
             raise ValueError('Invalid ticket profile')
         if self.old_account == self.new_account or self.old_secret_id == self.new_secret_id:
             raise ValueError('Ticket replacement must differ')
@@ -44,16 +45,16 @@ class Ticket:
 
 
 def validate_identifier(value: object) -> None:
-    if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_-]{2,256}', value):
+    if not is_identifier(value, 2, 256):
         raise ValueError('Invalid credential identifier')
 
 
 def validate_source(account: Mapping[str, Any], profile: str) -> dict[str, Any]:
-    if not isinstance(profile, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', profile):
+    if not is_identifier(profile, 1, 80):
         raise LifecycleError('Invalid source profile')
     for field in ('address', 'userName', 'platformId', 'safeName'):
         value = account.get(field)
-        if not isinstance(value, str) or not value.strip() or len(value) > 1024 or any(ord(c) < 32 for c in value):
+        if not is_readable_text(value, MAX_ACCOUNT_FIELD_LEN):
             raise LifecycleError('Incomplete source account scope')
     props = account.get('platformAccountProperties', {})
     if not isinstance(props, dict) or props.get('TencentRoleProfile') != profile:

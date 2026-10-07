@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import copy
-import re
 from typing import Any
 
 from pam.lifecycle import validate_identifier
+from validate import MAX_ACCOUNT_FIELD_LEN, MAX_FIELD_TEXT_LEN, MAX_SECRET_MATERIAL_LEN, is_identifier, is_readable_text
 
 
 def validate_account(payload: Any, safe: str, platform: str) -> dict[str, Any]:
@@ -26,24 +26,24 @@ def validate_account(payload: Any, safe: str, platform: str) -> dict[str, Any]:
         raise ValueError('Account outside the approved schema or scope')
     for field in required - {'secret'}:
         value = result[field]
-        if not isinstance(value, str) or not value.strip() or len(value) > 1024 or any(ord(c) < 32 for c in value):
+        if not is_readable_text(value, MAX_ACCOUNT_FIELD_LEN):
             raise ValueError('Invalid account metadata')
     if (
         result['secretType'] != 'password'
         or not isinstance(result['secret'], str)
-        or not 1 <= len(result['secret']) <= 4096
+        or not 1 <= len(result['secret']) <= MAX_SECRET_MATERIAL_LEN
     ):
         raise ValueError('Explicit bounded password credential required')
     properties = result.get('platformAccountProperties', {})
     if not isinstance(properties, dict) or any(
-        not isinstance(k, str) or not isinstance(v, str) or not k or len(k) > 128 or len(v) > 1024
+        not isinstance(k, str) or not isinstance(v, str) or not k or len(k) > 128 or len(v) > MAX_FIELD_TEXT_LEN
         for k, v in properties.items()
     ):
         raise ValueError('Platform properties must be bounded strings')
     if 'TencentSecretId' in properties or 'TencentRoleProfile' in properties:
         validate_identifier(properties.get('TencentSecretId'))
         profile = properties.get('TencentRoleProfile')
-        if not isinstance(profile, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', profile):
+        if not is_identifier(profile, 1, 80):
             raise ValueError('Complete Tencent caller/profile binding required')
     management = result.get('secretManagement')
     if 'secretManagement' in result:

@@ -7,6 +7,8 @@ from urllib.parse import quote, urlsplit
 
 import requests
 
+from validate import MAX_FIELD_TEXT_LEN, MAX_IDENTIFIER_LEN, MAX_PVWA_TOKEN_LEN, is_credential_text, is_identifier, is_readable_text
+
 
 def _has_dot_segment(path: str) -> bool:
     """Detect '.'/'..' segments (including percent-encoded) before the client normalises them.
@@ -64,7 +66,7 @@ class Vault:
         if not valid:
             raise ValueError('Use an explicit HTTPS PVWA API base URL')
         ca_ok = ca is True or (isinstance(ca, str) and bool(ca.strip()))
-        if not ca_ok or not isinstance(token, str) or not 1 <= len(token) <= 16384 or any(ord(c) < 32 or ord(c) == 127 for c in token):
+        if not ca_ok or not is_credential_text(token, MAX_PVWA_TOKEN_LEN):
             raise ValueError('TLS verification and an authorized PVWA session are required')
         self.url = api_url.rstrip('/')
         self.token, self.ca = token, ca
@@ -172,9 +174,9 @@ class Vault:
         to_date: int | None = None,
     ) -> Any:
         self.account_path(account_id)
-        if not isinstance(reason, str) or not reason.strip() or len(reason) > 1024:
+        if not is_readable_text(reason, MAX_FIELD_TEXT_LEN):
             raise ValueError('A bounded request reason is required')
-        if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', component):
+        if not is_identifier(component, 1, MAX_IDENTIFIER_LEN):
             raise ValueError('Explicit connection component required')
         payload: dict[str, Any] = {'AccountID': account_id, 'Reason': reason, 'UseConnect': True, 'ConnectionComponent': component}
         if bool(ticket_id) != bool(ticket_system):
@@ -190,7 +192,7 @@ class Vault:
         return self.request('POST', '/MyRequests', payload)
 
     def request_decision(self, request_id: str, decision: str, reason: str) -> dict[str, str]:
-        if decision not in ('confirm', 'reject') or not isinstance(reason, str) or not reason.strip() or len(reason) > 1024:
+        if decision not in ('confirm', 'reject') or not is_readable_text(reason, MAX_FIELD_TEXT_LEN):
             raise ValueError('Explicit decision and reason required')
         identifier = self.account_path(request_id).rsplit('/', 1)[1]
         self.request('POST', '/IncomingRequests/' + identifier + '/' + decision, {'Reason': reason})
@@ -225,7 +227,7 @@ class Vault:
         ticket_system: str | None = None,
     ) -> Any:
         self.account_path(account_id)
-        if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', component) or not isinstance(reason, str) or not reason.strip() or len(reason) > 1024:
+        if not is_identifier(component, 1, MAX_IDENTIFIER_LEN) or not is_readable_text(reason, MAX_FIELD_TEXT_LEN):
             raise ValueError('Explicit component and bounded reason required')
         payload: dict[str, Any] = {'ConnectionComponent': component, 'reason': reason}
         if bool(ticket_id) != bool(ticket_system):

@@ -8,14 +8,16 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any, TextIO
 
+from validate import MAX_AUDIT_LINE_BYTES, MAX_AUDIT_LINES, is_identifier
+
 
 def event(fields: Mapping[str, Any]) -> str:
     """Serialize one audit record; schema_version and timestamp are never caller-overridable."""
     return json.dumps({**fields, 'schema_version': 1, 'timestamp': datetime.now(UTC).isoformat(timespec='milliseconds')})
 
 
-def summarize(stream: TextIO, max_lines: int = 100000) -> dict[str, Any]:
-    if type(max_lines) is not int or not 1 <= max_lines <= 100000:
+def summarize(stream: TextIO, max_lines: int = MAX_AUDIT_LINES) -> dict[str, Any]:
+    if type(max_lines) is not int or not 1 <= max_lines <= MAX_AUDIT_LINES:
         raise ValueError('Invalid audit line bound')
     statuses: Counter[str] = Counter()
     profiles: Counter[str] = Counter()
@@ -27,7 +29,7 @@ def summarize(stream: TextIO, max_lines: int = 100000) -> dict[str, Any]:
         if not line:
             break
         lines += 1
-        if lines > max_lines or len(line) > 8192:
+        if lines > max_lines or len(line) > MAX_AUDIT_LINE_BYTES:
             raise ValueError('Audit input exceeds bound; report not complete')
         try:
             row = json.loads(line.lstrip('\ufeff') if lines == 1 else line)
@@ -42,7 +44,7 @@ def summarize(stream: TextIO, max_lines: int = 100000) -> dict[str, Any]:
             if request_id not in seen_http:
                 statuses[str(row['status'])] += 1
                 seen_http.add(request_id)
-        elif row.get('event') == 'role_session_issued' and isinstance(row.get('profile'), str) and re.fullmatch(r'[A-Za-z0-9_-]{1,80}', row['profile']):
+        elif row.get('event') == 'role_session_issued' and isinstance(row.get('profile'), str) and is_identifier(row['profile'], 1, 80):
             if request_id not in seen_roles:
                 profiles[row['profile']] += 1
                 seen_roles.add(request_id)

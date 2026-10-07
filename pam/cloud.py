@@ -5,6 +5,13 @@ import re
 from typing import Any
 
 from federation import FederationError, validate_region
+from validate import (
+    MAX_CREDENTIAL_ID_LEN,
+    MAX_INVENTORY_INSTANCES,
+    MAX_INVENTORY_PAGE_SIZE,
+    MAX_INVENTORY_PAGES,
+    is_identifier,
+)
 
 KEY_STATUSES = ('Active', 'Inactive')
 # Vendor-controlled strings are echoed into operator output; bound and sanitise them.
@@ -134,7 +141,7 @@ class Cloud:
         return key.AccessKeyId, key.SecretAccessKey
 
     def set_key_status(self, target: object, secret_id: str, status: str) -> None:
-        if status not in ('Active', 'Inactive') or not isinstance(secret_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,256}', secret_id):
+        if status not in ('Active', 'Inactive') or not is_identifier(secret_id, 1, MAX_CREDENTIAL_ID_LEN):
             raise ValueError('Invalid key transition')
         self.assert_subuser(target)
         from tencentcloud.cam.v20190116.models import UpdateAccessKeyRequest
@@ -205,7 +212,7 @@ class Cloud:
                 ClientProfile(httpProfile=HttpProfile(endpoint='cvm.intl.tencentcloudapi.com', reqTimeout=15)))
             offset, expected = 0, None
             seen: set[str] = set()
-            for _page in range(100):
+            for _page in range(MAX_INVENTORY_PAGES):
                 req = models.DescribeInstancesRequest()
                 req.Offset = offset
                 req.Limit = 100
@@ -214,14 +221,14 @@ class Cloud:
                 batch = result.InstanceSet
                 if batch is None and total == 0:
                     batch = []
-                if type(total) is not int or not 0 <= total <= 10000 or not isinstance(batch, list) or len(batch) > 100:
+                if type(total) is not int or not 0 <= total <= MAX_INVENTORY_INSTANCES or not isinstance(batch, list) or len(batch) > MAX_INVENTORY_PAGE_SIZE:
                     raise FederationError('Invalid or oversized inventory page')
                 if expected is not None and total != expected:
                     raise FederationError('Inventory changed during pagination; restart discovery')
                 expected = total
                 if offset + len(batch) > total or (not batch and offset < total):
                     raise FederationError('Incomplete inventory page')
-                if len(inventory['instances']) + len(batch) > 10000:
+                if len(inventory['instances']) + len(batch) > MAX_INVENTORY_INSTANCES:
                     raise FederationError('Inventory exceeds total record bound')
                 for instance in batch:
                     identifier = instance.InstanceId

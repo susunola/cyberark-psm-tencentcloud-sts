@@ -6,17 +6,14 @@ import os
 from pathlib import Path
 from typing import Any, TextIO
 
+from validate import MAX_JSON_INPUT_BYTES, unique_json_object
+
 
 def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError('Duplicate JSON field')
-        result[key] = value
-    return result
+    return unique_json_object(pairs, message='Duplicate JSON field')
 
 
-def read_json(path: str | Path | None = None, *, stream: TextIO | None = None, limit: int = 1024 * 1024) -> Any:
+def read_json(path: str | Path | None = None, *, stream: TextIO | None = None, limit: int = MAX_JSON_INPUT_BYTES) -> Any:
     if path is not None:
         with Path(path).open('rb') as source:
             raw = source.read(limit + 1)
