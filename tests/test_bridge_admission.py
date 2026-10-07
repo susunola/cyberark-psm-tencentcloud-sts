@@ -148,7 +148,8 @@ class AdmissionCapacityTests(unittest.TestCase):
 
     def test_the_default_slot_count_leaves_a_thread_for_health_checks(self):
         """The two numbers are tuned together; this keeps them from drifting."""
-        self.assertLess(DEFAULT_ISSUANCE_SLOTS, THREADS)
+        # slots + one waiter + /livez
+        self.assertGreaterEqual(THREADS, DEFAULT_ISSUANCE_SLOTS + 2)
 
     def test_admission_parameters_are_validated(self):
         for slots in (0, -1, MAX_ISSUANCE_SLOTS + 1, True, "3", None):

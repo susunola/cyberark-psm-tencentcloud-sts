@@ -271,6 +271,20 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(self.post(data).status_code, 303)
         self.assertLessEqual(len(self.calls[0][3]), 128)
 
+    def test_installer_ships_runtime_and_validate_modules(self):
+        # app.py imports validate at startup; a copy that omits it cannot serve /readyz.
+        installer = (ROOT / "scripts" / "Install-Bridge.ps1").read_text(encoding="utf-8")
+        for name in ("app.py", "validate.py", "federation.py", "security.py", "runtime.py"):
+            self.assertIn(f"'{name}'", installer)
+
+    def test_proxy_template_overwrites_client_identity_headers(self):
+        # IIS URL Rewrite has no request-header delete; <set> replaces the HTTP_
+        # server variable so a client-supplied X-PSM-* cannot survive forwarding.
+        template = (ROOT / "deployment" / "web.config.template").read_text(encoding="utf-8")
+        self.assertEqual(template.count("<set name="), 2)
+        self.assertNotIn("<add name=", template)
+        self.assertIn("replaces any client-supplied", template)
+
     def test_installer_verifies_dependency_hashes(self):
         # Static assertion: the installer must prefer the hash-pinned lock, because
         # this pip install runs elevated. Windows behaviour is verified on CI.

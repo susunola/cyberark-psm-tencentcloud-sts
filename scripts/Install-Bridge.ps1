@@ -23,7 +23,7 @@ try {
     New-Item -ItemType Directory -Path $InstallDir | Out-Null
     # Dedicated installation directory: administrators and SYSTEM only initially.
     Invoke-Checked -Exe 'icacls.exe' -Arguments @($InstallDir, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F')
-    foreach ($Name in @('app.py','federation.py','configuration.py','security.py','runtime.py','version.py','requirements.lock.txt','requirements.lock.hashes.txt')) {
+    foreach ($Name in @('app.py','federation.py','configuration.py','security.py','runtime.py','validate.py','version.py','requirements.lock.txt','requirements.lock.hashes.txt')) {
         Copy-Item -LiteralPath (Join-Path $SourceDir $Name) -Destination $InstallDir
     }
     New-Item -ItemType Directory -Path (Join-Path $InstallDir 'pam') | Out-Null

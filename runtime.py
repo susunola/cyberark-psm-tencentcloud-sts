@@ -19,7 +19,9 @@ from validate import MAX_REQUEST_HEADER_BYTES
 # what the server is willing to buffer before handing the request over.
 TRANSPORT_BODY_CEILING = 32768
 MAX_REQUEST_HEADER_SIZE = MAX_REQUEST_HEADER_BYTES
-THREADS = 4
+# Slots + one queued submitter + /livez. A waiter occupies a worker for up to
+# issuance_wait, so health must not be the thread that gets starved.
+THREADS = 6
 CONNECTION_LIMIT = 100
 CHANNEL_TIMEOUT = 30
 DEFAULT_PORT = 8765

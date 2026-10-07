@@ -26,6 +26,7 @@ from security import (
 )
 from validate import (
     MAX_AUDIT_LABEL_LEN,
+    MAX_CREDENTIAL_ID_LEN,
     MAX_IDENTITY_LEN,
     MAX_PROFILE_NAME_LEN,
     MAX_REQUEST_BODY_BYTES,
@@ -39,7 +40,7 @@ from version import VERSION
 FORM = f"""<!doctype html><html lang="en"><meta charset="utf-8"><title>Tencent Cloud role connection</title>
 <body><h1>Tencent Cloud role connection</h1><form method="post" action="/connect" autocomplete="off">
 <input type="hidden" name="csrf" value="{{{{ csrf }}}}">
-<label>SecretId <input id="secret_id" name="secret_id" required maxlength="{MAX_IDENTITY_LEN}"></label><br>
+<label>SecretId <input id="secret_id" name="secret_id" required maxlength="{MAX_CREDENTIAL_ID_LEN}"></label><br>
 <label>SecretKey <input id="secret_key" name="secret_key" type="password" required maxlength="{MAX_SECRET_KEY_LEN}"></label><br>
 <label>Role profile <input id="profile" name="profile" required maxlength="{MAX_PROFILE_NAME_LEN}"></label><br>
 <label>Audit label <input id="audit_label" name="audit_label" required maxlength="{MAX_AUDIT_LABEL_LEN}"></label><br>

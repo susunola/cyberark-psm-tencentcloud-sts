@@ -19,6 +19,8 @@
         </rule>
       </rules>
     </rewrite>
+    <!-- <set> below replaces any client-supplied HTTP_ server variable of the same
+         name before the rewrite is forwarded; do not use <add>, which would append. -->
     <httpErrors existingResponse="PassThrough" />
   </system.webServer>
 </configuration>
