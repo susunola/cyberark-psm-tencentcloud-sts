@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add property-based tests for the security-critical validators: no destination other than the console host is ever accepted, a normalized audit label is always log-safe and bounded, an accepted route cannot escape the API prefix, the JSON size bound is never exceeded, and a failure message never echoes the credential material it was given. The signed canonical string is asserted verbatim.
+- Add a model-based test for the rotation state machine, driving random prepare/finalize/restore/recover sequences and asserting after every step that a reported cutover left exactly one live key, that a key is only retired after another key was verified as the target identity, and that rotation never ends with zero usable credentials.
+- Add `scripts/check_guard_mutations.py`: it disables each security guard in turn and requires the suite to fail, reporting the guards that no test protects (12 of 12 enforced today). It refuses to run while a target file differs from HEAD, so it can never hide uncommitted work.
+- Audit the pinned dependencies for published advisories with `pip-audit` in CI, and record the dependency-hash completeness check in the quality job.
+- Add hypothesis and pip-audit to the pinned developer tooling. The property and invariant suites skip cleanly when only the runtime lock is installed, and the CI matrix now installs the test tooling so they execute rather than skip.
 - Answer an oversized request body from the application instead of the transport, so the 413 now carries the same security headers as every other response. The transport ceiling was raised above the application's 8 KB contract for that purpose; requests with oversized headers are still refused by the transport and SECURITY.md records that boundary.
 - Make the dependency-hash check meaningful: a recorded hash that the index no longer publishes fails the build, while an upstream artifact we have not recorded only asks for a regeneration. It runs in the CI quality job, so a stale or tampered lock is caught automatically.
 - Assert the installer's security-relevant statements statically: hash-verified installation is preferred over the plain lock, the generated proxy configuration is re-protected to SYSTEM and administrators only after it is written, and the proxy template replaces the identity headers instead of appending to them.

@@ -11,10 +11,19 @@ python -m mypy
 python -m coverage run -m unittest discover -s tests
 python -m coverage report
 python scripts/check_docs.py
+python scripts/pin_lock_hashes.py --check
+python -m pip_audit -r requirements.lock.txt
 python scripts/build_release.py --out dist
 ```
 
-`mypy` takes its target list from `pyproject.toml`, and `coverage report` enforces the coverage threshold declared there (95%; currently measured at 99%). Raise the gate only together with real tests. `python -m unittest discover -s tests -v` is the single runner used locally and by CI, including the Windows/Ubuntu and Python 3.11-3.13 matrix.
+Two checks go further than the gate above and run as their own CI jobs:
+
+- `python scripts/check_guard_mutations.py` disables one security guard at a time and requires the suite to fail, so a control that no test protects is reported (about a minute). It refuses to run when a target file differs from HEAD, so it cannot hide uncommitted work.
+- `python -m pip_audit -r requirements.lock.txt` fails when a published advisory covers a pinned dependency. A new advisory is a real finding rather than a flake, so it is expected to break the build until the pin moves.
+
+When you add a security guard, add it to the mutation table in `scripts/check_guard_mutations.py` and to the property or invariant suite where one applies. When you change the dependency lock, regenerate the hash file (`python scripts/pin_lock_hashes.py`) and re-run the audit.
+
+`requirements-dev.txt` is required to run the suite: the property and invariant suites need hypothesis and skip cleanly without it. `mypy` takes its target list from `pyproject.toml`, and `coverage report` enforces the coverage threshold declared there (95%; currently measured at 99%). Raise the gate only together with real tests. `python -m unittest discover -s tests -v` is the single runner used locally and by CI, including the Windows/Ubuntu and Python 3.11-3.13 matrix.
 
 Lint is enforced but formatting is not: the test and script suites keep intentional compact one-liners, so `ruff format` must not be run over them.
 

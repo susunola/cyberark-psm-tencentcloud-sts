@@ -193,7 +193,14 @@ Run the quality gate from the full-source directory after creating the managemen
 
 Ruff checks lint only. Formatting is deliberately not enforced because the test and script suites keep intentional compact one-liners.
 
-CI additionally runs a dedicated quality job (the same lint, mypy and coverage gate) plus a real Redis job for the shared-token backend.
+CI additionally runs the quality job (lint, mypy, coverage gate and a dependency-hash completeness check), a dependency-advisory audit of the pinned lock, a guard-mutation job that disables one security guard at a time and requires the suite to fail, and a real Redis job for the shared-token backend.
+
+Beyond example-based tests, two suites pin behaviour that examples cannot:
+
+- `tests/test_properties.py` drives the security-critical validators with generated input: no destination other than the console host is ever accepted, a normalized audit label is always log-safe and bounded, an accepted route can never escape the API prefix, a size bound is never exceeded, and a failure message never echoes the credential material it was given.
+- `tests/test_rotation_invariants.py` runs the rotation state machine as a Hypothesis model, driving random sequences of prepare/finalize/restore/recover and asserting after every step that a reported cutover left exactly one live key, that a key is only retired once another key was verified as the target identity, and that rotation never ends with zero usable credentials.
+
+`python scripts/check_guard_mutations.py` turns that rigour into a measurement: it disables each security guard in turn and reports how many the suite actually notices (currently 12 of 12). `python -m pip_audit -r requirements.lock.txt` reports published advisories for the pinned dependencies.
 
 Tests cover signing and encoding, destination restrictions, proxy authentication, CSRF replay, role/caller allowlists, SDK request construction, expiring credentials, validation and sanitization of every CLI/API boundary, staged-rotation state transitions, and redacted errors. Mock STS and cloud calls do not establish live login compatibility.
 

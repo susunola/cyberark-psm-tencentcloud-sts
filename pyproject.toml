@@ -36,6 +36,8 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13",
     "coverage>=7.6",
+    "hypothesis>=6.100",
+    "pip-audit>=2.7",
     "types-requests>=2.32",
     "types-redis>=5",
 ]

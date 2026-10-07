@@ -1,7 +1,9 @@
 # Pinned developer tooling for local use and CI. Runtime pins live in requirements.lock.txt.
 # Regenerate intentionally, never automatically: these tools define the quality gate.
 coverage==7.16.2
+hypothesis==6.168.5
 mypy==1.20.2
+pip-audit==2.10.1
 ruff==0.16.10
 types-redis==4.6.0.20241004
 types-requests==2.33.0.20261006
