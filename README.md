@@ -188,7 +188,7 @@ Run the quality gate from the full-source directory after creating the managemen
 & .\.venv\Scripts\python.exe -m coverage report
 ```
 
-`mypy` reads its target list from `pyproject.toml`, so the checked surface (the bridge, federation, security, `pam/` and `scripts/`) is defined in one place. `coverage report` enforces the 95% threshold declared in `pyproject.toml` — currently measured at 99%, with 13 of 16 modules at 100% — so a change that removes coverage fails the gate.
+`mypy` reads its target list from `pyproject.toml`, so the checked surface (the bridge, federation, security, `pam/` and `scripts/`) is defined in one place. `coverage report` enforces the 95% threshold declared in `pyproject.toml` — currently measured at 99.5%, with 14 of 16 modules at 100% — so a change that removes coverage fails the gate.
 
 Ruff checks lint only. Formatting is deliberately not enforced because the test and script suites keep intentional compact one-liners.
 

@@ -186,7 +186,7 @@ flowchart TB
 & .\.venv\Scripts\python.exe -m coverage report
 ```
 
-`mypy` 的检查范围由 `pyproject.toml` 统一声明（桥接、federation、security、`pam/` 与 `scripts/`），只需维护一处。`coverage report` 执行 `pyproject.toml` 中声明的 95% 阈值——当前实测 99%，16 个模块中 13 个为 100%——覆盖率下降会直接使门禁失败。
+`mypy` 的检查范围由 `pyproject.toml` 统一声明（桥接、federation、security、`pam/` 与 `scripts/`），只需维护一处。`coverage report` 执行 `pyproject.toml` 中声明的 95% 阈值——当前实测 99.5%，16 个模块中 14 个为 100%——覆盖率下降会直接使门禁失败。
 
 ruff 只做代码检查，刻意不强制格式化：测试与脚本保留了有意为之的紧凑写法。
 

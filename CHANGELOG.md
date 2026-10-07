@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Adopt one quality toolchain for local use and CI: ruff for lint, mypy for typing and `coverage run -m unittest discover` for the suite. `requirements-dev.txt` pins the tooling and a pre-commit configuration mirrors it on upstream tags.
-- Raise the enforced coverage gate from 80% to 95%; the measured total is 99% with 13 of 16 modules at 100%.
+- Raise the enforced coverage gate from 80% to 95%; the measured total is 99.5% with 14 of 16 modules at 100%.
 - Define the type-checked surface once in `pyproject.toml` and extend it to `scripts/`, so the CLI that drives real credentials is checked too.
 - Fix the `mypy` step failing on `waitress`, which ships no type stubs; only that import code is suppressed, so every real type error still fails the build.
 - Fix `pam.audit.event` so caller fields can no longer overwrite `schema_version` or `timestamp`, keeping emitted records unforgeable at the schema level.
