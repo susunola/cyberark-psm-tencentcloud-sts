@@ -147,7 +147,7 @@ class DeliveryTests(unittest.TestCase):
         self.assertIn("timestamp", json.loads(event({"event": "http_result"})))
 
     def test_request_window_and_ticket_schema(self):
-        vault = Vault("https://pvwa.invalid/API", "FAKE-TOKEN")
+        vault = Vault("https://pvwa.invalid/PasswordVault/API", "FAKE-TOKEN")
         vault.request = MagicMock()
         vault.access_request(
             "1_2",
@@ -172,7 +172,7 @@ class DeliveryTests(unittest.TestCase):
         vault.request.assert_not_called()
 
     def test_request_and_session_detail_endpoints(self):
-        vault = Vault("https://pvwa.invalid/API", "FAKE-TOKEN")
+        vault = Vault("https://pvwa.invalid/PasswordVault/API", "FAKE-TOKEN")
         vault.request = MagicMock()
         vault.session_details("session-123", "activities")
         vault.request.assert_called_with("GET", "/LiveSessions/session-123/activities")

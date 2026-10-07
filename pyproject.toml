@@ -155,6 +155,17 @@ convention = "google"
 [tool.mypy]
 python_version = "3.10"
 strict = true
+# Single source of truth for the checked surface; CI, pre-commit and docs all just run `mypy`.
+files = [
+    "app.py",
+    "configuration.py",
+    "federation.py",
+    "runtime.py",
+    "security.py",
+    "version.py",
+    "pam",
+    "scripts",
+]
 warn_return_any = true
 warn_unused_ignores = true
 warn_redundant_casts = true
@@ -162,10 +173,11 @@ warn_unreachable = true
 ignore_missing_imports = true
 # Third-party cloud/redis/wsgi libraries ship no py.typed marker.
 disable_error_code = ["import-untyped"]
+# scripts/ has no __init__.py and is invoked as a path, so let mypy map it explicitly.
+explicit_package_bases = true
 exclude = [
-    "scripts",
     "deployment",
-    ".venv",
+    "\\.venv",
 ]
 
 [[tool.mypy.overrides]]

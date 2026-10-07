@@ -1,3 +1,3 @@
 """Source milestone; not a certification or compatibility claim."""
 
-VERSION = "0.5.1"
+VERSION = "0.5.2"

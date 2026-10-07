@@ -280,7 +280,7 @@ class AssertSubuserTests(unittest.TestCase):
                 cloud.assert_subuser(123)
         self.assertIn("sub-user", str(error.exception))
 
-    def test_missing_user_list_is_tolerated(self):
+    def test_missing_user_list_is_refused(self):
         with patch(CAM_CLIENT) as cam:
             cloud = _cam_cloud(cam)
             cam.return_value.ListUsers.return_value = SimpleNamespace(Data=None)
@@ -379,7 +379,8 @@ class DiscoverTests(unittest.TestCase):
         self.assertEqual(instance["public_ips"], [])
 
     def test_invalid_region_is_rejected_without_building_a_cvm_client(self):
-        for region in ("ap_singapore", "AP-Singapore", "ap-singapore-1", ""):
+        # Suffix forms such as ap-singapore-1 are valid syntax and covered separately.
+        for region in ("ap_singapore", "AP-Singapore", "", "ap", "a-guangzhou"):
             with self.subTest(region=region), patch(CAM_CLIENT) as cam, patch(CVM_CLIENT) as cvm:
                 cam.return_value.ListUsers.return_value.Data = []
                 with self.assertRaises(ValueError):

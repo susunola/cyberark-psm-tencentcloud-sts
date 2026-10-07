@@ -21,9 +21,7 @@ jobs:
       - name: Ruff format check
         run: python -m ruff format --check .
       - name: Mypy strict
-        run: >-
-          python -m mypy app.py configuration.py federation.py runtime.py
-          security.py version.py pam/
+        run: python -m mypy
       - name: Unit tests with coverage gate
         run: python -m pytest -q
   shared-tokens:
@@ -45,6 +43,8 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m pip install -r requirements.lock.txt
+      - run: python -m pip check
+      - run: python scripts/check_docs.py
       - run: python -m unittest discover -s tests -v
         env:
           PSM_TEST_REDIS_URL: redis://127.0.0.1:6379/15
@@ -61,6 +61,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -r requirements.lock.txt
+      - run: python -m pip check
+      - run: python scripts/check_docs.py
       - run: python -m unittest discover -s tests -v
       - run: python -m compileall -q app.py configuration.py federation.py security.py runtime.py version.py scripts pam
       - name: Parse PowerShell deployment scripts

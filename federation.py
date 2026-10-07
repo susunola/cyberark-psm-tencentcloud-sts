@@ -10,6 +10,8 @@ from typing import Any
 from urllib.parse import urlencode, urlsplit
 
 MAX_DESTINATION_LENGTH = 2048
+MAX_REGION_LENGTH = 64
+REGION_PATTERN = re.compile(r"[a-z]{2}-[a-z]+(?:-[a-z0-9]+)*")
 MIN_NONCE = 10000
 MAX_NONCE = 100000000
 FEDERATION_HOST = "www.tencentcloud.com"
@@ -20,6 +22,17 @@ ALGORITHM = "sha256"
 
 class FederationError(Exception):
     """Raised when federation input or STS interaction is invalid."""
+
+
+def validate_region(region: str) -> str:
+    """Validate region syntax without pretending to own a cloud availability catalogue."""
+    if (
+        not isinstance(region, str)
+        or len(region) > MAX_REGION_LENGTH
+        or not re.fullmatch(REGION_PATTERN, region)
+    ):
+        raise ValueError("Invalid cloud region")
+    return region
 
 
 def validate_destination(url: str) -> str:
@@ -99,6 +112,7 @@ def assume_role(
     duration: int,
     region: str,
 ) -> dict[str, str]:
+    validate_region(region)
     # Explicit credentials: no environment credential fallback or debug logging.
     from tencentcloud.common import credential
     from tencentcloud.common.profile.client_profile import ClientProfile

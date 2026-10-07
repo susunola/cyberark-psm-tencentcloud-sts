@@ -93,7 +93,7 @@ flowchart TB
 
 ## 交付状态与运维
 
-0.5.1 已补充严格配置校验、调用密钥与角色独占绑定、Windows 安装/卸载脚本、IIS 代理模板、安全审计关联、CI、可重现源码包与 SHA256。原创代码采用 MIT 许可，维护者为 **susunola**。
+0.5.2 已补充严格配置校验、调用密钥与角色独占绑定、Windows 安装/卸载脚本、IIS 代理模板、安全审计关联、CI、可重现源码包、SHA256 清单与 CycloneDX 依赖清单。原创代码采用 MIT 许可，维护者为 **susunola**。
 
 - [完整交付清单与剩余外部依赖](docs/DELIVERY.zh-CN.md)
 - [原生 CPM/PSM 操作、恢复、定时维护和共享令牌](docs/OPERATIONS.zh-CN.md)
@@ -182,11 +182,11 @@ flowchart TB
 ```powershell
 & .\.venv\Scripts\python.exe -m ruff check .
 & .\.venv\Scripts\python.exe -m ruff format --check .
-& .\.venv\Scripts\python.exe -m mypy app.py configuration.py federation.py runtime.py security.py version.py pam/
+& .\.venv\Scripts\python.exe -m mypy
 & .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-`pytest` 会执行 `pyproject.toml` 中声明的覆盖率阈值（95%，当前实测 99.6%），覆盖率下降会直接使门禁失败。开发过程中可用 `--no-cov` 跳过；`python -m unittest discover -s tests -v` 同样可运行测试，CI 的系统/Python 矩阵即使用该方式。
+`pytest` 会执行 `pyproject.toml` 中声明的覆盖率阈值（95%，当前实测 99.3%），覆盖率下降会直接使门禁失败。开发过程中可用 `--no-cov` 跳过；`python -m unittest discover -s tests -v` 同样可运行测试，CI 的系统/Python 矩阵即使用该方式。
 
 CI 另设独立质量任务（ruff 检查、ruff 格式校验、严格 mypy、带覆盖率门禁的 pytest），以及针对共享令牌后端的真实 Redis 任务。
 

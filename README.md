@@ -93,7 +93,7 @@ This package includes a runnable bridge and unit tests. It is not a platform ZIP
 
 ## Delivery status and operations
 
-Version 0.5.1 includes strict configuration validation, dedicated caller-to-role binding, Windows install/uninstall scripts, an IIS proxy template, safe audit correlation, CI, a reproducible source archive and SHA256 manifest. Original code uses the MIT license; maintainer: **susunola**.
+Version 0.5.2 includes strict configuration validation, dedicated caller-to-role binding, Windows install/uninstall scripts, an IIS proxy template, safe audit correlation, CI, a reproducible source archive with a SHA256 manifest and a CycloneDX dependency inventory. Original code uses the MIT license; maintainer: **susunola**.
 
 - [Complete delivery ledger and remaining external dependencies](docs/DELIVERY.md)
 - [Native CPM/PSM operations, recovery, maintenance and shared tokens](docs/OPERATIONS.md)
@@ -184,11 +184,11 @@ Run the quality gate from the full-source directory after creating the managemen
 ```powershell
 & .\.venv\Scripts\python.exe -m ruff check .
 & .\.venv\Scripts\python.exe -m ruff format --check .
-& .\.venv\Scripts\python.exe -m mypy app.py configuration.py federation.py runtime.py security.py version.py pam/
+& .\.venv\Scripts\python.exe -m mypy
 & .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-`pytest` enforces the coverage threshold declared in `pyproject.toml` (95%, currently measured at 99.6%), so a change that removes test coverage fails the gate. Use `--no-cov` while iterating; `python -m unittest discover -s tests -v` also runs the suite, which is what CI's OS/Python matrix uses.
+`pytest` enforces the coverage threshold declared in `pyproject.toml` (95%, currently measured at 99.3%), so a change that removes test coverage fails the gate. Use `--no-cov` while iterating; `python -m unittest discover -s tests -v` also runs the suite, which is what CI's OS/Python matrix uses.
 
 CI additionally runs a dedicated quality job (ruff lint, ruff format check, strict mypy, pytest with coverage) plus a real Redis job for the shared-token backend.
 

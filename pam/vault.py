@@ -6,6 +6,11 @@ from urllib.parse import quote, urlsplit
 
 import requests
 
+MAX_API_URL_LENGTH = 2048
+MAX_PORT = 65535
+MAX_TOKEN_LENGTH = 16384
+PVWA_API_SUFFIX = "/passwordvault/api"
+ALLOWED_METHODS = ("GET", "POST", "DELETE")
 ACCOUNT_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,128}")
 COMPONENT_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,128}")
 OPERATION_PATTERN = re.compile(r"[a-f0-9]{32}")
@@ -64,17 +69,37 @@ class Vault:
         ca: Any = True,
         session: Any = None,
     ):
-        parsed = urlsplit(api_url)
         if (
-            parsed.scheme != "https"
-            or not parsed.hostname
-            or parsed.username
-            or parsed.password
-            or parsed.query
-            or parsed.fragment
+            not isinstance(api_url, str)
+            or not api_url
+            or len(api_url) > MAX_API_URL_LENGTH
+            or any(ord(c) < 33 for c in api_url)
+            or "\\" in api_url
         ):
             raise ValueError("Use an explicit HTTPS PVWA API base URL")
-        if ca is False or not token:
+        try:
+            parsed = urlsplit(api_url)
+            port = parsed.port
+            valid = (
+                parsed.scheme == "https"
+                and bool(parsed.hostname)
+                and not parsed.username
+                and not parsed.password
+                and not parsed.query
+                and not parsed.fragment
+                and (port is None or 1 <= port <= MAX_PORT)
+                and parsed.path.rstrip("/").lower().endswith(PVWA_API_SUFFIX)
+            )
+        except ValueError:
+            valid = False
+        if not valid:
+            raise ValueError("Use an explicit HTTPS PVWA API base URL")
+        if (
+            not (ca is True or (isinstance(ca, str) and ca.strip()))
+            or not isinstance(token, str)
+            or not 1 <= len(token) <= MAX_TOKEN_LENGTH
+            or any(ord(c) < 32 or ord(c) == 127 for c in token)
+        ):
             raise ValueError("TLS verification and an authorized PVWA session are required")
         self.url = api_url.rstrip("/")
         self.token, self.ca = token, ca
@@ -89,6 +114,17 @@ class Vault:
         *,
         accept: str = "application/json",
     ) -> Any:
+        # Reject malformed routes before any transport call can be attempted.
+        if (
+            method not in ALLOWED_METHODS
+            or not isinstance(path, str)
+            or not path.startswith("/")
+            or path.startswith("//")
+            or "#" in path
+            or "\\" in path
+            or any(ord(c) < 33 for c in path)
+        ):
+            raise ValueError("Invalid PVWA request route")
         try:
             response = self.session.request(
                 method,

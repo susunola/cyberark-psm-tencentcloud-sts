@@ -484,10 +484,11 @@ class ConfigurationValidationTests(unittest.TestCase):
             validate_settings(shared)
 
     def test_region_rules(self):
-        for region in (None, 123, "", "ap", "AP-guangzhou", "ap-guangzhou-1", "ap_guangzhou"):
-            with self.subTest(region=region), self.assertRaisesRegex(ValueError, "Invalid STS region"):
+        for region in (None, 123, "", "ap", "AP-guangzhou", "ap_guangzhou", "a-guangzhou"):
+            with self.subTest(region=region), self.assertRaisesRegex(ValueError, "Invalid cloud region"):
                 validate_settings({"profiles": {"readonly": profile(region=region)}})
-        for region in ("ap-guangzhou", "ap-singapore", "na-siliconvalley"):
+        # Suffix forms are syntactically valid; availability stays a cloud-side decision.
+        for region in ("ap-guangzhou", "ap-singapore", "na-siliconvalley", "ap-guangzhou-1"):
             validated = validate_settings({"profiles": {"readonly": profile(region=region)}})
             self.assertEqual(validated["profiles"]["readonly"]["region"], region)
 

@@ -2,7 +2,7 @@
 
 **English** | [简体中文](INSTALLATION-AND-USAGE.zh-CN.md) · [Back to README](../README.md)
 
-Applies to source version 0.5.1. This guide takes an administrator from first installation to console access, guest access, maintenance and recovery. The console flow uses Vault-managed CAM keys in a CyberArk PSM Web session. CVM guest access uses the installed native SSH/RDP components.
+Applies to source version 0.5.2. This guide takes an administrator from first installation to console access, guest access, maintenance and recovery. The console flow uses Vault-managed CAM keys in a CyberArk PSM Web session. CVM guest access uses the installed native SSH/RDP components.
 
 The deliverable is bridge and administrative source code, not an importable native platform/CPM ZIP. Automated checks cover Windows/Ubuntu, Python 3.11–3.13 and actual Redis token sharing. Service operation on a target PSM, live Tencent Cloud login, recording and approval still require environment acceptance. Passing source tests does not certify every PAM version. See the [delivery ledger](DELIVERY.md) and [acceptance record](ACCEPTANCE.md).
 
@@ -258,6 +258,8 @@ An approved provider must stream a complete object/array into stdin; do not past
 
 Standalone identity verification: `python scripts/pamctl.py verify --target-uin 100000000002` consumes a JSON object with `secret_id` and `secret_key` from approved secure stdin. It checks caller UIN through the international identity endpoint, not successful console login. No `--apply` is required for this read-only command.
 
+Discovery is bounded to 20 unique, fully prevalidated regions, 1,000 CAM users, 100 pages per region and 10,000 CVM instances across the run. Duplicate instances, incomplete pages or changed totals fail the whole command rather than produce a success with partial results. Retry a fresh read after inventory changes settle; no consistent snapshot is guaranteed. Region suffixes such as `ap-shanghai-fsi` pass syntax validation, but account/service availability still needs cloud confirmation.
+
 ### 7.4 Export and audit
 
 ```text
@@ -377,3 +379,5 @@ Record at least: correct role/permission; invalid keys/unauthorized profiles rej
 Callback URLs contain temporary credentials and Python cannot guarantee memory zeroization. Apply the organization's PSM baseline to debugging, clipboard/file channels and diagnostics. Share time/version/account ID/request ID and sanitized status, never keys, cookies, tokens or full callback URLs.
 
 Further reading: [Deployment](DEPLOYMENT.md) · [Operations](OPERATIONS.md) · [PAM capabilities](PAM-CAPABILITIES.md) · [Security](../SECURITY.md)
+
+Source distribution quality checks also run `python scripts/check_docs.py` and `python -m pip check`. The build produces `dependency-sbom.cdx.json`, a CycloneDX 1.5 inventory of locked source dependencies beside the archive/manifest. It does not certify deployed-host contents or absence of vulnerabilities.

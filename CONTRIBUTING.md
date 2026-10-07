@@ -8,7 +8,7 @@ Create a branch, explain the concrete problem, and run the full quality gate:
 python -m pip install -r requirements.lock.txt -r requirements-dev.txt
 python -m ruff check .
 python -m ruff format --check .
-python -m mypy app.py configuration.py federation.py runtime.py security.py version.py pam/
+python -m mypy
 python -m pytest -q
 python scripts/build_release.py --out dist
 ```

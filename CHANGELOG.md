@@ -8,10 +8,19 @@
 - Replace inline magic numbers, duplicated probe-label maps and repeated parser construction with named constants, shared helpers and per-command CLI handlers; split `scripts/pamctl.py` and `scripts/build_release.py` into testable functions.
 - Normalize formatting across source, scripts and tests; expand `.gitignore` to cover coverage/tooling caches and generated export artifacts.
 - Document the quality gate, code conventions and sanitized-error policy in the contribution guide and both READMEs.
-- Expand the offline suite from 111 to 378 tests, covering request construction, validation, sanitization, pagination, token backends, maintenance locking, staged-rotation refusals and both token stores; measured total coverage is 99.6% and the enforced gate is now 95%.
-- Fix validation order so invalid input never triggers a cloud call: `pam.cloud` now validates the key transition before `assert_subuser`, and every region before listing CAM users.
+- Expand the offline suite to cover request construction, validation, sanitization, pagination, token backends, maintenance locking, staged-rotation refusals and both token stores; the enforced coverage gate is now 95%.
 - Fix `pam.audit.event` so caller fields can no longer overwrite `schema_version` or `timestamp`, keeping emitted records unforgeable at the schema level.
 - Fix non-string input handling: `pam.vault` account IDs, connect ticket fields and non-object search results now raise `ValueError`/`VaultError` instead of `TypeError`/`AttributeError`, and both token stores validate capacity and TTL type (rejecting booleans and numeric strings).
+- Keep the stricter PVWA base-URL, token and route rules from 0.5.2 while adding the local quality gate around them.
+
+## 0.5.2 — 2026-10-07
+
+- Bound CAM/CVM discovery to 20 unique prevalidated regions, 1,000 users, 100 pages per region and 10,000 instances overall; reject repeated IDs, invalid pages and changing totals rather than return partial inventory.
+- Accept syntactically valid region suffixes while leaving availability to cloud validation; prevalidate key mutations and identity targets before remote calls.
+- Reject malformed PVWA API bases, control-character tokens, false-equivalent TLS settings and invalid routes before transport.
+- Add offline documentation/CLI validation and dependency consistency checks to all CI jobs.
+- Include a deterministic CycloneDX dependency inventory beside source distributions; this is not a vulnerability scan or deployed-host inventory.
+- Add inventory/transport failure regression tests without claiming live PAM acceptance.
 
 ## 0.5.1 — 2026-10-06
 

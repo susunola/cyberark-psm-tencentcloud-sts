@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from federation import validate_destination
+from federation import validate_destination, validate_region
 
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_PROFILES = 100
@@ -18,7 +18,6 @@ MAX_DURATION_SECONDS = 300
 PROFILE_NAME_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,80}")
 SECRET_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{2,256}")
 ROLE_ARN_PATTERN = re.compile(r"qcs::cam::uin/[0-9]+:role(?:Name)?/[A-Za-z0-9_-]+")
-REGION_PATTERN = re.compile(r"[a-z]+-[a-z]+")
 
 
 def load_settings(path: str | Path) -> dict[str, Any]:
@@ -66,7 +65,5 @@ def validate_settings(settings: Any) -> dict[str, Any]:
             if sid in seen_ids:
                 raise ValueError("Each caller SecretId must belong to one profile only")
             seen_ids.add(sid)
-        region = p["region"]
-        if not isinstance(region, str) or not re.fullmatch(REGION_PATTERN, region):
-            raise ValueError("Invalid STS region")
+        validate_region(p["region"])
     return copy.deepcopy(settings)
