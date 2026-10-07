@@ -26,10 +26,14 @@ PVWA authentication and MFA are obtained through your approved flow. Administrat
 
 ## Server-level rejections
 
-The backend binds to loopback and is configured with an 8 KB request-body cap and
-a 16 KB header cap. A request that exceeds either is rejected by the HTTP server
-before it reaches the application, so those responses (413/431) carry the server's
-own body without the application's `Content-Security-Policy`,
-`Cache-Control: no-store`, `X-Content-Type-Options` or `X-Request-ID` headers. The
-responses are static and contain no request data. If your baseline requires uniform
-response headers on that path, terminate it at the authenticated proxy instead.
+The backend binds to loopback. Two limits apply:
+
+- Request bodies over 8 KB are rejected by the application, which returns a 413
+  carrying the same security headers as every other response. The transport's own
+  body ceiling is deliberately set higher (32 KB) so that the application produces
+  the response; a body beyond that ceiling is refused by the transport.
+- Request *headers* over 16 KB are rejected by the transport before it reaches the
+  application, because no application-level limit exists for them. Those responses
+  (431) carry the transport's own body without the application's headers. The body
+  is static and contains no request data. If your baseline requires uniform
+  response headers on that path, terminate it at the authenticated proxy instead.

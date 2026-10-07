@@ -135,6 +135,34 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(self.post(data).status_code, 303)
         self.assertLessEqual(len(self.calls[0][3]), 128)
 
+    def test_installer_verifies_dependency_hashes(self):
+        # Static assertion: the installer must prefer the hash-pinned lock, because
+        # this pip install runs elevated. Windows behaviour is verified on CI.
+        installer = (ROOT / "scripts/Install-Bridge.ps1").read_text(encoding="utf-8")
+        self.assertIn("requirements.lock.hashes.txt", installer)
+        self.assertIn("'--require-hashes'", installer)
+        verified = installer.index("'--require-hashes'")
+        fallback = installer.index("without hash verification")
+        self.assertLess(verified, fallback)
+        self.assertEqual(installer.count("'pip','install'"), 2)
+
+    def test_installer_reprotects_the_generated_proxy_config(self):
+        # The install directory grants LocalService read for the service XML, so the
+        # generated file holding the proxy key must be re-protected after it is written.
+        installer = (ROOT / "scripts/Install-Bridge.ps1").read_text(encoding="utf-8")
+        written = installer.index("web.config.generated'")
+        protection = installer.index("/inheritance:r', '/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:R'")
+        self.assertLess(written, protection)
+        # Only SYSTEM and administrators, and no LocalService read on that path.
+        self.assertNotIn("*S-1-5-19:F", installer)
+
+    def test_proxy_template_replaces_rather_than_appends_identity_headers(self):
+        template = (ROOT / "deployment" / "web.config.template").read_text(encoding="utf-8")
+        # <set> replaces the server variable; <add> would append, letting a client
+        # supply part of the identity the bridge trusts.
+        self.assertEqual(template.count("<set name="), 2)
+        self.assertNotIn("<add name=", template)
+
     def test_release_is_reproducible_and_excludes_secrets(self):
         from zipfile import ZipFile
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:

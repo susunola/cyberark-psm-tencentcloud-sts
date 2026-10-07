@@ -70,8 +70,22 @@ class HttpRuntimeTests(unittest.TestCase):
             'secret_key':'fake-key','audit_label':'test-user'})
         self.assertEqual(replay.status_code,403)
 
-    def test_server_body_limit(self):
+    def test_oversized_body_is_rejected_with_the_application_headers(self):
+        # The transport ceiling sits above the application limit on purpose, so the
+        # 413 is produced by the application and carries the same hardening headers.
         result = requests.post(self.url+'/connect',headers=self.headers,data=b'x'*9000,timeout=3)
+        self.assertEqual(result.status_code,413)
+        for header, value in (
+            ("X-Content-Type-Options", "nosniff"),
+            ("Cache-Control", "no-store"),
+            ("Referrer-Policy", "no-referrer"),
+        ):
+            self.assertEqual(result.headers.get(header), value)
+        self.assertIn("default-src 'none'", result.headers.get("Content-Security-Policy", ""))
+        self.assertRegex(result.headers.get("X-Request-ID", ""), r"^[0-9a-f]{32}$")
+
+    def test_a_body_beyond_the_transport_ceiling_is_still_refused(self):
+        result = requests.post(self.url+'/connect',headers=self.headers,data=b'x'*40000,timeout=5)
         self.assertEqual(result.status_code,413)
 
 

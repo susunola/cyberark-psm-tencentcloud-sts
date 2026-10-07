@@ -19,6 +19,8 @@ jobs:
         run: python -m ruff check .
       - name: Mypy strict typing
         run: python -m mypy
+      - name: Dependency hashes are complete
+        run: python scripts/pin_lock_hashes.py --check
       - name: Unit tests with coverage gate
         run: |
           python -m coverage run -m unittest discover -s tests

@@ -68,6 +68,64 @@ def published_hashes(name: str, version: str) -> list[str]:
     return sorted(digests)
 
 
+def recorded_hashes(path: Path) -> dict[str, set[str]]:
+    """Return the digests recorded per package name in a hash-pinned file."""
+    recorded: dict[str, set[str]] = {}
+    current: str | None = None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("--hash="):
+            if current is not None:
+                recorded.setdefault(current, set()).add(line.split("sha256:", 1)[-1].strip(" \\"))
+            continue
+        entry = line.split("\\")[0].split("--hash")[0].strip()
+        name = entry.partition("==")[0].strip().lower()
+        if name:
+            current = name
+            recorded.setdefault(name, set())
+    return recorded
+
+
+def verify(path: Path) -> int:
+    """Compare the recorded hashes against the index.
+
+    A recorded digest disappearing is a hard failure: upstream never removes a
+    published artifact, so it means a yank or a substituted release. A digest the
+    index publishes that we have not recorded is only an advisory - pip simply
+    refuses that artifact - so it asks for a regeneration rather than failing.
+    """
+    recorded = recorded_hashes(path)
+    problems: list[str] = []
+    advisories: list[str] = []
+    for name, version in pinned_requirements(LOCK_FILE):
+        published = set(published_hashes(name, version))
+        expected = recorded.get(name.lower(), set())
+        if not expected:
+            problems.append(f"{name}=={version}: no hashes recorded")
+            continue
+        if expected - published:
+            problems.append(
+                f"{name}=={version}: {len(expected - published)} recorded hash(es) are no longer published"
+            )
+        if published - expected:
+            advisories.append(
+                f"{name}=={version}: {len(published - expected)} upstream artifact(s) are not recorded"
+            )
+    for advisory in advisories:
+        print(f"advisory: {advisory}")
+    if problems:
+        for problem in problems:
+            print(f"problem: {problem}", file=sys.stderr)
+        return 2
+    if advisories:
+        print(f"{path.name} still covers every pinned version; re-run without --check to record the new artifacts.")
+        return 0
+    print(f"{path.name} is in sync with {LOCK_FILE.name}")
+    return 0
+
+
 def render(pinned: list[tuple[str, str]]) -> str:
     lines = list(HEADER)
     for name, version in pinned:
@@ -85,18 +143,12 @@ def main() -> None:
     parser.add_argument("--check", action="store_true", help="verify the file is in sync instead of writing it")
     args = parser.parse_args()
 
-    rendered = render(pinned_requirements(LOCK_FILE))
     if args.check:
-        existing = args.out.read_text(encoding="utf-8") if args.out.is_file() else ""
-        if existing != rendered:
-            print(
-                f"{args.out.name} is out of date. Re-run without --check and commit the result.",
-                file=sys.stderr,
-            )
+        if not args.out.is_file():
+            print(f"{args.out.name} is missing; generate it before deploying.", file=sys.stderr)
             raise SystemExit(2)
-        print(f"{args.out.name} is in sync with {LOCK_FILE.name}")
-        return
-    args.out.write_text(rendered, encoding="utf-8")
+        raise SystemExit(verify(args.out))
+    args.out.write_text(render(pinned_requirements(LOCK_FILE)), encoding="utf-8")
     print(f"Wrote {args.out}")
 
 

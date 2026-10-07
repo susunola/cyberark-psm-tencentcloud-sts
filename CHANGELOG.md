@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Answer an oversized request body from the application instead of the transport, so the 413 now carries the same security headers as every other response. The transport ceiling was raised above the application's 8 KB contract for that purpose; requests with oversized headers are still refused by the transport and SECURITY.md records that boundary.
+- Make the dependency-hash check meaningful: a recorded hash that the index no longer publishes fails the build, while an upstream artifact we have not recorded only asks for a regeneration. It runs in the CI quality job, so a stale or tampered lock is caught automatically.
+- Assert the installer's security-relevant statements statically: hash-verified installation is preferred over the plain lock, the generated proxy configuration is re-protected to SYSTEM and administrators only after it is written, and the proxy template replaces the identity headers instead of appending to them.
 - Bound pending form tokens per identity (evicting that identity's oldest), so one proxy-authenticated caller can no longer exhaust the shared pool and deny connections to everyone else. The global capacity still refuses rather than evicting other callers' tokens.
 - Reserve the issuance slot before consuming the single-use token, and burn the session copy only at that point: a 503 "busy" no longer forces a form reload and re-entry of the SecretKey.
 - Reject a comma-joined or space-padded `X-PSM-Authenticated-User`. The HTTP server joins repeated headers, so an appended value previously entered the audit identity and the token binding key together.
