@@ -11,82 +11,120 @@
 PSM 浏览器将 Vault 凭据提交到已认证的本地桥接服务，由服务换取角色临时凭据；浏览器再经腾讯云国际站签名回调建立控制台会话。
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"actorBkg":"#fff7ed","actorBorder":"#c2410c","actorTextColor":"#7c2d12","signalColor":"#334155","signalTextColor":"#0f172a","noteBkgColor":"#fef3c7","noteTextColor":"#78350f","noteBorderColor":"#d97706","labelBoxBkgColor":"#f8fafc","labelBoxBorderColor":"#cbd5e1","labelTextColor":"#0f172a","loopTextColor":"#0f172a","activationBkgColor":"#e0f2fe","activationBorderColor":"#0284c7","sequenceNumberColor":"#ffffff","fontFamily":"-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif"}}}%%
 sequenceDiagram
     autonumber
-    actor User
-    participant PVWA
-    participant Vault
-    participant PSM as PSM Web browser
-    participant IIS as IIS HTTPS proxy
-    participant Bridge as Local STS bridge
-    participant STS as sts.intl.tencentcloudapi.com
-    participant Login as www.tencentcloud.com
-    participant Console as console.tencentcloud.com
+    actor User as 授权用户
+    participant PVWA as PVWA
+    participant Vault as Vault
+    participant PSM as PSM 浏览器
+    participant IIS as IIS 代理
+    participant Bridge as STS 桥接服务
+    participant STS as 腾讯云 STS
+    participant Login as 角色回调
+    participant Console as 腾讯云控制台
+
+    rect rgb(255, 251, 245)
+    Note over User,PSM: 授权阶段
     User->>PVWA: 选择账号、原因及工单
-    PVWA->>PVWA: 检查 Safe 权限、MFA 和审批策略
+    PVWA->>PVWA: 校验 Safe 权限、MFA 与审批策略
     PVWA->>PSM: 启动已授权的原生 PSM 会话
     Vault-->>PSM: 受控读取账号凭据
-    PSM->>IIS: Windows 认证后获取表单
-    IIS->>Bridge: 携可信身份和密钥转发至环回后端
-    Bridge-->>PSM: 返回表单及身份绑定的单次 CSRF
-    PSM->>IIS: 提交 PSM 注入的密钥、profile 和 CSRF
-    IIS->>Bridge: 覆盖客户端头并转发已认证 POST
-    Bridge->>Bridge: 校验身份、CSRF 和调用者/角色绑定
-    Bridge->>STS: 使用专用调用凭据请求 AssumeRole
+    end
+
+    rect rgb(240, 249, 255)
+    Note over PSM,Bridge: 本地桥接（仅环回）
+    PSM->>IIS: GET 表单（Windows 认证）
+    IIS->>Bridge: 转发可信身份与代理密钥
+    Bridge-->>PSM: 表单 + 身份绑定的单次 CSRF
+    PSM->>IIS: POST SecretId、SecretKey、profile、CSRF
+    IIS->>Bridge: 覆盖客户端头并转发 POST
+    Bridge->>Bridge: 校验身份、CSRF、调用者/角色绑定
+    end
+
+    rect rgb(236, 253, 245)
+    Note over Bridge,STS: AssumeRole 与签名回调
+    Bridge->>STS: AssumeRole（专用调用凭据）
     STS-->>Bridge: 返回角色临时凭据
-    Bridge->>Bridge: 用 HMAC-SHA256 签名国际站回调
-    Bridge-->>PSM: 303 跳转到签名回调地址
-    PSM->>Login: 访问带签名的临时登录地址
+    Bridge->>Bridge: HMAC-SHA256 签名国际站回调
+    Bridge-->>PSM: 303 → 签名 roleAccessCallback
+    end
+
+    rect rgb(250, 245, 255)
+    Note over PSM,Console: 进入控制台
+    PSM->>Login: 提交带签名的临时登录地址
     Login-->>PSM: 建立云端会话并重定向
     PSM->>Console: 按角色权限访问控制台
-    Note over PSM,Console: 原生 PSM 负责录屏；关闭 PSM 不撤销云端临时凭据
+    Note over PSM,Console: 原生 PSM 负责录屏。<br/>关闭 PSM 不会撤销云端临时凭据
+    end
 ```
 
 ## 部署架构
 
-实线表示请求或受控依赖，虚线表示返回浏览器的重定向及可选共享令牌状态。客户机 SSH/RDP 使用独立的原生 PSM 路径。
+实线表示请求或受控依赖；虚线表示返回浏览器的重定向及可选共享令牌状态。客户机 SSH/RDP 使用独立的原生 PSM 路径。
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif"}}}%%
 flowchart TB
-    U[授权用户] --> PVWA
+    classDef actor fill:#fff7ed,stroke:#c2410c,color:#7c2d12,stroke-width:1.5px
+    classDef host fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:1.5px
+    classDef pam fill:#eef2ff,stroke:#4338ca,color:#312e81,stroke-width:1.5px
+    classDef cloud fill:#ecfdf5,stroke:#059669,color:#064e3b,stroke-width:1.5px
+    classDef guest fill:#f0fdfa,stroke:#0d9488,color:#134e4a,stroke-width:1.5px
+    classDef optional fill:#faf5ff,stroke:#7e22ce,color:#581c87,stroke-width:1.5px,stroke-dasharray: 5 3
+    classDef config fill:#fffbeb,stroke:#d97706,color:#78350f,stroke-width:1.5px
+
+    U([授权用户]):::actor
+    A([受保护管理工作站<br/>pamctl · 维护]):::actor
+
     subgraph PAM[CyberArk PAM 环境]
-        PVWA[PVWA: authorization / MFA / approval / tickets]
-        V[Vault: CAM and guest credentials]
-        CPM[原生 CPM：已验证客户机平台]
-        REC[原生 PSM 录像与审计]
+        direction TB
+        PVWA{{PVWA<br/>认证 · MFA · 审批 · 工单}}:::pam
+        V[/"Vault<br/>CAM 与客户机凭据"/]:::pam
+        CPM[原生 CPM<br/>客户机密码平台]:::pam
+        REC[(PSM 录像与审计)]:::pam
+
         subgraph HOST[Windows PSM 主机]
-            B[Native PSM Web browser]
-            I[IIS: HTTPS / Windows Authentication]
-            S[Bridge service: own virtual account / 127.0.0.1:8765]
-            CFG[受保护角色白名单及服务秘密]
+            direction TB
+            B[原生 PSM 浏览器]:::host
+            I[IIS HTTPS + Windows 认证]:::host
+            S[STS 桥接服务<br/>独立虚拟账户 · 127.0.0.1:8765]:::host
+            CFG[/角色白名单<br/>+ 服务密钥/]:::config
         end
-        PVWA --> B
-        V -->|controlled retrieval| B
-        B -->|HTTPS form| I
-        I -->|overwrite identity and key / loopback| S
-        CFG --> S
-        B --> REC
-        CPM --> V
     end
+
     subgraph TC[腾讯云国际站]
-        STS[sts.intl.tencentcloudapi.com]
-        LOGIN[www.tencentcloud.com role callback]
-        CONSOLE[console.tencentcloud.com]
-        CAM[cam.intl.tencentcloudapi.com]
-        CVM[cvm.intl.tencentcloudapi.com]
-        G[Private Windows / Linux CVM guests]
+        direction TB
+        STS[sts.intl.tencentcloudapi.com]:::cloud
+        LOGIN[www.tencentcloud.com<br/>角色回调]:::cloud
+        CONSOLE[console.tencentcloud.com]:::cloud
+        CAM[cam.intl.tencentcloudapi.com]:::cloud
+        CVM[cvm.intl.tencentcloudapi.com]:::cloud
+        G[私有 Windows / Linux CVM 客户机]:::guest
     end
-    S -->|AssumeRole HTTPS| STS
-    S -.->|303 returned through proxy to browser| B
-    B -->|signed temporary URL| LOGIN
-    LOGIN -->|cloud session redirect| CONSOLE
-    B -->|native PSM-SSH / PSM-RDP separately| G
-    CPM -->|native guest password management| G
-    A[受保护管理工作站：pamctl / 维护] -->|authorized API session| PVWA
-    A -->|scoped key management| CAM
-    A -->|inventory discovery| CVM
-    R[可选共享 Redis：TLS / ACL / 单一可写主节点]
-    S -.->|multi-node single-use form state| R
+
+    R[(可选共享 Redis<br/>TLS · ACL · 单一主节点)]:::optional
+
+    U -->|会话| PVWA
+    PVWA ==> B
+    V -->|受控读取| B
+    B -->|HTTPS 表单| I
+    I -->|身份 + 密钥 · 环回| S
+    CFG --> S
+    B --> REC
+    CPM --> V
+
+    S ==>|AssumeRole HTTPS| STS
+    S -.->|303 经代理返回| B
+    B ==>|签名临时登录地址| LOGIN
+    LOGIN -.->|云端会话| CONSOLE
+    B ==>|PSM-SSH / PSM-RDP| G
+    CPM ==>|客户机密码管理| G
+
+    A -->|授权 API 会话| PVWA
+    A -->|受控密钥管理| CAM
+    A -->|资产发现| CVM
+    S -.->|多节点单次表单状态| R
 ```
 
 本包包含可运行的桥接服务和单元测试。它不是直接导入 PVWA 的平台 ZIP；缺少现场 PSM 版本、Web 框架和腾讯云测试账号，尚未完成 Windows、PSM 录屏或腾讯云真实登录验收。

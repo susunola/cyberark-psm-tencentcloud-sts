@@ -16,6 +16,7 @@ from pam.lifecycle import Ticket, finalize, prepare, recover_ticket, restore_old
 from pam.onboarding import validate_account
 from pam.planning import cvm_plan
 from pam.vault import Vault
+from validate import MAX_CREDENTIAL_JSON_BYTES, MAX_ONBOARD_JSON_BYTES
 
 
 def vault() -> Vault:
@@ -183,11 +184,11 @@ def main() -> None:
             result = cvm_plan(read_json(args.inventory), args.safe,
                 args.linux_platform, args.windows_platform, read_json(args.usernames))
         elif args.command == 'verify':
-            credential = read_json(stream=sys.stdin, limit=8192)
+            credential = read_json(stream=sys.stdin, limit=MAX_CREDENTIAL_JSON_BYTES)
             caller = Cloud(credential['secret_id'], credential['secret_key'])
             result = {'verified': caller.verify(credential['secret_id'], credential['secret_key'], args.target_uin)}
         elif args.command == 'onboard':
-            payload = validate_account(read_json(stream=sys.stdin, limit=65536), args.safe, args.platform)
+            payload = validate_account(read_json(stream=sys.stdin, limit=MAX_ONBOARD_JSON_BYTES), args.safe, args.platform)
             result = {'account_id': vault().create(payload)}
         elif args.command == 'prepare':
             # Reserve a journal path BEFORE cloud mutation; never overwrite a previous attempt.

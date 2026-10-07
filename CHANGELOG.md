@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Close the OpenCodeReview medium findings: drop the unused `validate.MAX_ISSUANCE_SLOTS` name that collided with the admission ceiling, remove dead bound constants, and wire `app`/`runtime`/`pamctl`/`pam.cloud` to `validate` for proxy/session key length, identity/label/secret-key bounds, request body/header size, credential/onboard JSON limits and the CAM inventory default.
+- Redraw the README login sequence and deployment architecture diagrams: phased color bands for the login flow, trust-zone palette and line styles for the architecture graph, bilingual labels kept in sync.
+
 - Extract shared identifier/text/JSON-key validators and named security bounds into `validate.py` (behavior unchanged).
 
 - Make the admission queue measurable again with `scripts/load_check.py`, which reproduces the burst that motivated it over real sockets and fails when the documented behaviour stops holding. Measured with the documented default (3 slots, 5-second wait, 500 ms STS, 10 callers with distinct identities): 10 logins, all 303, 2.04 s wall clock, latency 0.53/1.04/2.04 s at min/median/p95, so the queueing is visible as a latency ladder rather than as refusals. With `--wait 0` the same burst gives 3 logins and 7 refusals in 0.53 s, which is the shape the queue was added to remove. The first run of the harness made the same mistake a reader would: ten callers sharing one identity produced 3 logins and 7 refusals with no queueing at all, because the per-identity pending-token bound refuses them before admission is reached - which is why the harness now gives each caller its own identity, the documented deployment prerequisite, and says so.

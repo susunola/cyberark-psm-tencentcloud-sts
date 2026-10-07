@@ -11,82 +11,120 @@ A Tencent Cloud international console role login bridge for CyberArk PSM, using 
 The PSM browser submits the Vault credential to an authenticated local bridge; the bridge exchanges it for temporary role credentials. The browser then uses Tencent Cloud's international callback to establish the console session.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"actorBkg":"#fff7ed","actorBorder":"#c2410c","actorTextColor":"#7c2d12","signalColor":"#334155","signalTextColor":"#0f172a","noteBkgColor":"#fef3c7","noteTextColor":"#78350f","noteBorderColor":"#d97706","labelBoxBkgColor":"#f8fafc","labelBoxBorderColor":"#cbd5e1","labelTextColor":"#0f172a","loopTextColor":"#0f172a","activationBkgColor":"#e0f2fe","activationBorderColor":"#0284c7","sequenceNumberColor":"#ffffff","fontFamily":"-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"}}}%%
 sequenceDiagram
     autonumber
-    actor User
-    participant PVWA
-    participant Vault
-    participant PSM as PSM Web browser
-    participant IIS as IIS HTTPS proxy
-    participant Bridge as Local STS bridge
-    participant STS as sts.intl.tencentcloudapi.com
-    participant Login as www.tencentcloud.com
-    participant Console as console.tencentcloud.com
+    actor User as Operator
+    participant PVWA as PVWA
+    participant Vault as Vault
+    participant PSM as PSM browser
+    participant IIS as IIS proxy
+    participant Bridge as STS bridge
+    participant STS as Tencent STS
+    participant Login as Role callback
+    participant Console as Tencent console
+
+    rect rgb(255, 251, 245)
+    Note over User,PSM: Authorization
     User->>PVWA: Select account, reason and ticket
-    PVWA->>PVWA: Safe authorization, MFA and approval policy
+    PVWA->>PVWA: Safe authorization, MFA, approval
     PVWA->>PSM: Start authorized native PSM session
     Vault-->>PSM: Controlled account credential retrieval
-    PSM->>IIS: GET form with Windows Authentication
-    IIS->>Bridge: Loopback request with trusted identity/key
-    Bridge-->>PSM: Form and identity-bound single-use CSRF
-    PSM->>IIS: POST injected SecretId, SecretKey, profile and CSRF
-    IIS->>Bridge: Overwrite client headers and forward authenticated POST
-    Bridge->>Bridge: Validate identity, CSRF and caller/profile binding
-    Bridge->>STS: AssumeRole using dedicated caller credentials
+    end
+
+    rect rgb(240, 249, 255)
+    Note over PSM,Bridge: Local bridge (loopback only)
+    PSM->>IIS: GET form (Windows Authentication)
+    IIS->>Bridge: Trusted identity and proxy key
+    Bridge-->>PSM: Form + identity-bound single-use CSRF
+    PSM->>IIS: POST SecretId, SecretKey, profile, CSRF
+    IIS->>Bridge: Overwrite client headers, forward POST
+    Bridge->>Bridge: Validate identity, CSRF, caller/profile binding
+    end
+
+    rect rgb(236, 253, 245)
+    Note over Bridge,STS: AssumeRole and signed callback
+    Bridge->>STS: AssumeRole (dedicated caller credentials)
     STS-->>Bridge: Temporary role credentials
     Bridge->>Bridge: HMAC-SHA256 sign international callback
-    Bridge-->>PSM: 303 to signed roleAccessCallback
+    Bridge-->>PSM: 303 → signed roleAccessCallback
+    end
+
+    rect rgb(250, 245, 255)
+    Note over PSM,Console: Console session
     PSM->>Login: Submit signed temporary login URL
     Login-->>PSM: Establish cloud session and redirect
     PSM->>Console: Access console with role permissions
-    Note over PSM,Console: Native PSM records session. Closing PSM does not revoke cloud tokens
+    Note over PSM,Console: Native PSM records the session.<br/>Closing PSM does not revoke cloud tokens
+    end
 ```
 
 ## Deployment architecture
 
-Solid lines show requests or managed dependencies; dotted lines show the returned redirect and optional shared-token state. Guest SSH/RDP is a separate native PSM path.
+Solid lines are requests or managed dependencies; dashed lines are the returned redirect and optional shared-token state. Guest SSH/RDP uses a separate native PSM path.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"}}}%%
 flowchart TB
-    U[Authorized operator] --> PVWA
-    subgraph PAM[CyberArk PAM environment]
-        PVWA[PVWA: authorization / MFA / approval / tickets]
-        V[Vault: CAM and guest credentials]
-        CPM[Native CPM: verified guest password platforms]
-        REC[Native PSM recordings and audit]
+    classDef actor fill:#fff7ed,stroke:#c2410c,color:#7c2d12,stroke-width:1.5px
+    classDef host fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:1.5px
+    classDef pam fill:#eef2ff,stroke:#4338ca,color:#312e81,stroke-width:1.5px
+    classDef cloud fill:#ecfdf5,stroke:#059669,color:#064e3b,stroke-width:1.5px
+    classDef guest fill:#f0fdfa,stroke:#0d9488,color:#134e4a,stroke-width:1.5px
+    classDef optional fill:#faf5ff,stroke:#7e22ce,color:#581c87,stroke-width:1.5px,stroke-dasharray: 5 3
+    classDef config fill:#fffbeb,stroke:#d97706,color:#78350f,stroke-width:1.5px
+
+    U([Authorized operator]):::actor
+    A([Admin workstation<br/>pamctl · maintenance]):::actor
+
+    subgraph PAM[CyberArk PAM]
+        direction TB
+        PVWA{{PVWA<br/>auth · MFA · approval · tickets}}:::pam
+        V[/"Vault<br/>CAM + guest credentials"/]:::pam
+        CPM[Native CPM<br/>guest password platforms]:::pam
+        REC[(PSM recordings<br/>and audit)]:::pam
+
         subgraph HOST[Windows PSM host]
-            B[Native PSM Web browser]
-            I[IIS: HTTPS / Windows Authentication]
-            S[Bridge service: own virtual account / 127.0.0.1:8765]
-            CFG[Protected role allowlist / service secrets]
+            direction TB
+            B[Native PSM browser]:::host
+            I[IIS HTTPS + Windows Auth]:::host
+            S[STS bridge service<br/>virtual account · 127.0.0.1:8765]:::host
+            CFG[/Role allowlist<br/>+ service secrets/]:::config
         end
-        PVWA --> B
-        V -->|controlled retrieval| B
-        B -->|HTTPS form| I
-        I -->|overwrite identity and key / loopback| S
-        CFG --> S
-        B --> REC
-        CPM --> V
     end
+
     subgraph TC[Tencent Cloud international]
-        STS[sts.intl.tencentcloudapi.com]
-        LOGIN[www.tencentcloud.com role callback]
-        CONSOLE[console.tencentcloud.com]
-        CAM[cam.intl.tencentcloudapi.com]
-        CVM[cvm.intl.tencentcloudapi.com]
-        G[Private Windows / Linux CVM guests]
+        direction TB
+        STS[sts.intl.tencentcloudapi.com]:::cloud
+        LOGIN[www.tencentcloud.com<br/>role callback]:::cloud
+        CONSOLE[console.tencentcloud.com]:::cloud
+        CAM[cam.intl.tencentcloudapi.com]:::cloud
+        CVM[cvm.intl.tencentcloudapi.com]:::cloud
+        G[Private Windows / Linux CVM guests]:::guest
     end
-    S -->|AssumeRole HTTPS| STS
-    S -.->|303 returned through proxy to browser| B
-    B -->|signed temporary URL| LOGIN
-    LOGIN -->|cloud session redirect| CONSOLE
-    B -->|native PSM-SSH / PSM-RDP separately| G
-    CPM -->|native guest password management| G
-    A[Protected admin workstation: pamctl / maintenance] -->|authorized API session| PVWA
-    A -->|scoped key management| CAM
-    A -->|inventory discovery| CVM
-    R[Optional shared Redis: TLS / ACL / single writable primary]
-    S -.->|multi-node single-use form state| R
+
+    R[(Optional shared Redis<br/>TLS · ACL · single primary)]:::optional
+
+    U -->|session| PVWA
+    PVWA ==> B
+    V -->|controlled retrieval| B
+    B -->|HTTPS form| I
+    I -->|identity + key · loopback| S
+    CFG --> S
+    B --> REC
+    CPM --> V
+
+    S ==>|AssumeRole HTTPS| STS
+    S -.->|303 via proxy| B
+    B ==>|signed temporary URL| LOGIN
+    LOGIN -.->|cloud session| CONSOLE
+    B ==>|PSM-SSH / PSM-RDP| G
+    CPM ==>|guest password mgmt| G
+
+    A -->|API session| PVWA
+    A -->|scoped key mgmt| CAM
+    A -->|inventory| CVM
+    S -.->|shared form state| R
 ```
 
 This package includes a runnable bridge and unit tests. It is not a platform ZIP that can be imported directly into PVWA. Windows deployment, PSM recording, and live Tencent Cloud login have not been validated against a target environment.

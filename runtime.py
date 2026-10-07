@@ -12,11 +12,13 @@ from typing import Any
 
 from waitress import create_server
 
+from validate import MAX_REQUEST_HEADER_BYTES
+
 # Hard transport ceiling. Kept above the application's MAX_CONTENT_LENGTH (8 KB)
 # so the application produces the 413 with its hardening headers; this only bounds
 # what the server is willing to buffer before handing the request over.
 TRANSPORT_BODY_CEILING = 32768
-MAX_REQUEST_HEADER_SIZE = 16384
+MAX_REQUEST_HEADER_SIZE = MAX_REQUEST_HEADER_BYTES
 THREADS = 4
 CONNECTION_LIMIT = 100
 CHANNEL_TIMEOUT = 30

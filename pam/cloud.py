@@ -10,6 +10,7 @@ from validate import (
     MAX_INVENTORY_INSTANCES,
     MAX_INVENTORY_PAGE_SIZE,
     MAX_INVENTORY_PAGES,
+    MAX_INVENTORY_USERS,
     is_identifier,
 )
 
@@ -23,7 +24,7 @@ MAX_CAM_KEYS = 10
 # in one response, so this is a bound on an unbounded reply rather than a page size.
 # An organisation above it must raise the bound deliberately and accept the larger
 # response: assert_subuser runs before every key mutation and has no narrower API.
-DEFAULT_MAX_CAM_USERS = 1000
+DEFAULT_MAX_CAM_USERS = MAX_INVENTORY_USERS
 MAX_CAM_USERS_CEILING = 100000
 
 

@@ -24,6 +24,15 @@ from security import (
     configured_token_store,
     shared_environment,
 )
+from validate import (
+    MAX_AUDIT_LABEL_LEN,
+    MAX_IDENTITY_LEN,
+    MAX_REQUEST_BODY_BYTES,
+    MAX_SECRET_KEY_LEN,
+    MIN_PROXY_KEY_LEN,
+    MIN_SESSION_KEY_LEN,
+    is_credential_text,
+)
 from version import VERSION
 
 FORM = '''<!doctype html><html lang="en"><meta charset="utf-8"><title>Tencent Cloud role connection</title>
@@ -89,7 +98,7 @@ def reject(reason: str, status: int = 403) -> NoReturn:
 
 
 def normalize_audit_label(label: str) -> str:
-    if not isinstance(label, str) or not 2 <= len(label) <= 256 or any(ord(c) < 32 for c in label):
+    if not isinstance(label, str) or not 2 <= len(label) <= MAX_AUDIT_LABEL_LEN or any(ord(c) < 32 for c in label):
         raise ValueError('Invalid audit label')
     if re.fullmatch(r'[A-Za-z0-9_.@=-]{2,64}', label):
         return label
@@ -108,8 +117,8 @@ def create_app(
     issuance_wait: float = DEFAULT_ISSUANCE_WAIT_SECONDS,
     identity_capacity: int | None = None,
 ) -> Flask:
-    if len(proxy_key) < 32 or len(session_key) < 32:
-        raise ValueError('Proxy and session keys must each be at least 32 characters')
+    if len(proxy_key) < MIN_PROXY_KEY_LEN or len(session_key) < MIN_SESSION_KEY_LEN:
+        raise ValueError(f'Proxy and session keys must each be at least {MIN_PROXY_KEY_LEN} characters')
     if proxy_key == session_key:
         raise ValueError('Use independent proxy and session keys')
     if type(issuance_slots) is not int or not 1 <= issuance_slots <= MAX_ISSUANCE_SLOTS:
@@ -125,7 +134,7 @@ def create_app(
     logger = logging.getLogger('psm_tencent.audit')
     app.config.update(
         SECRET_KEY=session_key,
-        MAX_CONTENT_LENGTH=8192,
+        MAX_CONTENT_LENGTH=MAX_REQUEST_BODY_BYTES,
         SESSION_COOKIE_SECURE=True,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE='Strict',
@@ -143,7 +152,7 @@ def create_app(
         if not hmac.compare_digest(supplied.encode(), proxy_key.encode()):
             reject(PROXY_KEY_REJECTED)
         identity = request.headers.get('X-PSM-Authenticated-User', '')
-        if not identity or len(identity) > 256:
+        if not identity or len(identity) > MAX_IDENTITY_LEN:
             reject(IDENTITY_REJECTED)
         if not identity.strip() or any(ord(c) < 32 or ord(c) == 127 for c in identity):
             reject(IDENTITY_REJECTED)
@@ -236,8 +245,9 @@ def create_app(
         sid = request.form.get('secret_id', '')
         key: str | None = request.form.get('secret_key', '')
         label = request.form.get('audit_label', '')
-        if not profile or sid not in profile['allowed_secret_ids'] or not key or not 1 <= len(key) <= 512:
+        if not profile or sid not in profile['allowed_secret_ids'] or not is_credential_text(key, MAX_SECRET_KEY_LEN):
             reject(BINDING_REJECTED, 400)
+        secret_key = key or ''
         try:
             label = normalize_audit_label(label)
         except ValueError:
@@ -258,7 +268,7 @@ def create_app(
                 reject(TOKEN_REJECTED)
             started = time.monotonic()
             try:
-                creds = sts(sid, key, profile['role_arn'], name, profile['duration_seconds'], profile['region'])
+                creds = sts(sid, secret_key, profile['role_arn'], name, profile['duration_seconds'], profile['region'])
             finally:
                 # Timed even when the call raises: a failing STS is exactly when the
                 # operator needs to know whether it was fast, slow or unreachable.
@@ -274,6 +284,7 @@ def create_app(
         finally:
             slots.release()
             key = None
+            secret_key = ''
         session.clear()
         logger.info(audit_event({
             'event': 'role_session_issued',
