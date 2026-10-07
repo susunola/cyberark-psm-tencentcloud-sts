@@ -110,7 +110,7 @@ jobs:
           $output = & ./scripts/Install-Bridge.ps1 -PythonExe (Get-Command python).Source `
             -WinSWExe "$env:RUNNER_TEMP\WinSW.exe" -WinSWSha256 $env:WINSW_SHA256 `
             -SettingsFile "$env:RUNNER_TEMP\settings.json" -InstallDir $env:INSTALL_DIR 2>&1
-          $output | Tee-Object -FilePath "$env:RUNNER_TEMP\installer.log"
+          $output | Tee-Object -FilePath "$env:GITHUB_WORKSPACE\installer.log"
           if ($output -match 'without hash verification') {
             throw 'The installer fell back to version pins instead of the hash-pinned lock.'
           }
@@ -169,14 +169,26 @@ jobs:
               throw "$kept was removed by the uninstall; audit and rollback evidence must survive."
             }
           }
+      - name: Stage the diagnostics inside the workspace
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path diagnostics | Out-Null
+          Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE\installer.log" -Destination diagnostics `
+            -ErrorAction SilentlyContinue
+          if (Test-Path "$env:INSTALL_DIR\logs") {
+            Copy-Item -Path "$env:INSTALL_DIR\logs\*" -Destination diagnostics -Recurse -Force `
+              -ErrorAction SilentlyContinue
+          }
+          Get-ChildItem diagnostics | ForEach-Object { Write-Output "diagnostic: $($_.Name)" }
+      # upload-artifact refuses any path outside the workspace root, and the install
+      # directory is on the same drive but outside the checkout, so it is staged first.
       - name: Collect diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: windows-installer-diagnostics
-          path: |
-            ${{ runner.temp }}/installer.log
-            C:\PSM-TencentCloud\logs\*
+          path: diagnostics/
           if-no-files-found: ignore
   shared-tokens:
     runs-on: ubuntu-24.04

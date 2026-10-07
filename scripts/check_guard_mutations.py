@@ -126,6 +126,12 @@ MUTATIONS: tuple[tuple[str, str, str, str], ...] = (
         "        if response.status_code >= 400:",
         "        if False:",
     ),
+    (
+        "files: a private output is created owner-only",
+        "pam/files.py",
+        "    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)",
+        "    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)",
+    ),
 )
 
 

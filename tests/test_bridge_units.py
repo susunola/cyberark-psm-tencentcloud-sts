@@ -9,6 +9,7 @@ validation of modules that app.py depends on.
 
 import hashlib
 import io
+import os
 import re
 import stat
 import tempfile
@@ -484,7 +485,14 @@ class JsonFileTests(unittest.TestCase):
             path = Path(folder) / 'ticket.json'
             with private_output(path) as stream:
                 save_json(stream, {'status': 'prepared', 'attempts': 1})
-            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            if os.name == 'posix':
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            else:
+                # Windows mode bits never carry an ACL, so 0600 expresses nothing there:
+                # the documented control is a protected parent directory (SECURITY.md).
+                # Exclusive creation and the surviving content are what the file itself
+                # guarantees, and both are asserted here.
+                self.assertGreater(path.stat().st_size, 0)
             self.assertEqual(read_json(path), {'status': 'prepared', 'attempts': 1})
             with self.assertRaises(FileExistsError):
                 private_output(path)
