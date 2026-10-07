@@ -13,9 +13,11 @@ The local suite includes real loopback HTTP requests to Waitress, with mocked ST
 | Windows service | WinSW version/hash, installation/start/stop/uninstall, ACL review | Pending environment |
 | IIS authentication | Anonymous denial, genuine Windows identity, header overwrite, pipeline ordering | Pending environment |
 | PSM launch | PAM/PSM version, browser/driver version, imported component export | Pending environment |
-| Cloud role login | CAM trust, AssumeRole policy, console-enabled role, destination/identity evidence | Pending environment |
+| Cloud role login | CAM trust, AssumeRole policy, console-enabled role, destination/identity evidence | **Partially verified 2026-10-07** on an international account: AssumeRole succeeded for a probe role with `ConsoleLogin=1` and a 300-second request was accepted and returned `expires in 300s`. Console-side login in a browser is still pending. |
+| STS duration | The configured `duration_seconds` is accepted by the API, and the role's own limit does not floor it | **Verified 2026-10-07**: `AssumeRole` with `DurationSeconds=300` succeeded against a role whose `SessionDuration` is 7200s, so the role value is a ceiling rather than a floor and the project's 300-second policy is usable. Re-check against your own role. |
+| Callback signature | Tencent's role-login callback accepts a signature built by this project | **Cannot be verified without a browser.** A server-side request to `www.tencentcloud.com/login/roleAccessCallback` returns the same 29 KB HTML shell with or without parameters, and identically for a correct and a deliberately tampered signature, so the endpoint does not validate the signature for a plain GET. |
 | Identity binding | `GetCallerIdentity.UserId` equals the caller UIN for the credential kind `pam/cloud.py` verifies | **Partially verified 2026-10-07** against `sts.intl.tencentcloudapi.com` with an international CAM sub-user caller: `Type=CAMUser`, `UserId=200037920937` equals the caller UIN, so the comparison in `verify()` holds for the permanent caller keys it is used with. It would not hold for temporary credentials, whose `UserId` is `roleId:roleSessionName`; `verify()` must not be called with those. |
-| Cloud restrictions | Invalid/disabled key, unauthorized role, duration, MFA/network conditions | Pending environment |
+| Cloud restrictions | Invalid/disabled key, unauthorized role, MFA/network conditions | Pending environment (duration verified above) |
 | Session isolation | Two users and two roles, separate cookies and processes | Pending environment |
 | Recording | PSM recording ID/playback and audit correlation | Pending environment |
 | Cleanup | Browser exits on logout/disconnect/timeout, no orphan process | Pending environment |
@@ -26,6 +28,8 @@ The local suite includes real loopback HTTP requests to Waitress, with mocked ST
 ## Test steps
 
 1. Record tester, date, operating system, PAM/PSM version, Web framework, browser/driver, Python, WinSW, role ARN (sanitize for public records), source commit and configuration revision.
+
+Role trust on this international account: `qcs::cam::uin/<root>:uin/<sub-user>` was rejected as `InvalidParameter.PrincipalQcsError` even for a sub-user that `ListUsers` reports, while `qcs::cam::uin/<root>:root` is accepted and is what existing roles in the same account use. `scripts/acceptance_live.py --provision` therefore tries the narrow form first and falls back to the account scope, reporting which it used; the probe role carries no policies, so the wider trust confers no permissions, and the role is deleted again unless `--keep-role` is given.
 
 `scripts/acceptance_live.py` performs the read-only part of this ledger (caller identity and AssumeRole durations) against the real international endpoint, reporting credential names and error codes but never their values. Run it before the PSM work so a broken trust relationship or an unacceptable duration is found early.
 2. Use a dedicated read-only role and test caller. Confirm destination identity and allowed operations. Verify disallowed resource operations fail.
