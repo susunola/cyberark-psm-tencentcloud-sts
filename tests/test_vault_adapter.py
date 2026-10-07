@@ -6,16 +6,7 @@ Every transport in this module is a fake. No test requires credentials or networ
 import unittest
 from unittest.mock import MagicMock
 
-from pam.vault import (
-    CONNECT_TIMEOUT,
-    MAX_REASON_LENGTH,
-    MAX_TICKET_LENGTH,
-    MAX_WINDOW_SECONDS,
-    READ_TIMEOUT,
-    Vault,
-    VaultError,
-    probe_label,
-)
+from pam.vault import Vault, VaultError
 
 API_URL = "https://pvwa.example/PasswordVault/API"
 TOKEN = "FAKE-TOKEN"
@@ -52,21 +43,6 @@ class VaultTestCase(unittest.TestCase):
         }
         record.update(overrides)
         return record
-
-
-class ProbeLabelTests(unittest.TestCase):
-    def test_none_status_maps_to_probe_failed(self):
-        self.assertEqual(probe_label(None), "probe-failed")
-
-    def test_unknown_status_falls_back_to_probe_failed(self):
-        for status in (200, 204, 302, 429, 500, 503):
-            self.assertEqual(probe_label(status), "probe-failed")
-
-    def test_known_denials_map_to_coarse_labels(self):
-        self.assertEqual(probe_label(401), "authentication-required")
-        self.assertEqual(probe_label(403), "permission-denied")
-        self.assertEqual(probe_label(404), "unsupported-or-hidden")
-        self.assertEqual(probe_label(405), "method-unsupported")
 
 
 class VaultConstructionTests(unittest.TestCase):
@@ -121,7 +97,7 @@ class VaultRequestTests(VaultTestCase):
         self.assertEqual(kwargs["headers"]["Authorization"], TOKEN)
         self.assertEqual(kwargs["headers"]["Content-Type"], "application/json")
         self.assertEqual(kwargs["headers"]["Accept"], "application/json")
-        self.assertEqual(kwargs["timeout"], (CONNECT_TIMEOUT, READ_TIMEOUT))
+        self.assertEqual(kwargs["timeout"], (5, 20))
         self.assertIs(kwargs["verify"], True)
         self.assertIs(kwargs["allow_redirects"], False)
 
@@ -224,8 +200,11 @@ class CapabilityProbeTests(VaultTestCase):
         self.assertNotIn("PVWA request denied", str(result))
 
     def test_probe_reports_unknown_status_as_probe_failed(self):
-        result = self.probe({"/Recordings?limit=1&offset=0": (500, None)})
-        self.assertEqual(result["resources"]["Recordings"], "probe-failed")
+        # The label mapping is inlined in capability_probe; a missing status reaches it as -1.
+        for status in (302, 429, 500, 503, None):
+            result = self.probe({"/Recordings?limit=1&offset=0": (status, None)})
+            self.assertEqual(result["resources"]["Recordings"], "probe-failed")
+            self.assertNotIn("PVWA request", str(result))
 
     def test_probe_flags_unexpected_read_shape(self):
         result = self.probe({"/MyRequests": (200, VENDOR_TEXT)})
@@ -255,6 +234,8 @@ class AccountOperationTests(VaultTestCase):
             "1;2",
             "",
             "a" * 129,
+            None,
+            123,
         ):
             with self.assertRaises(ValueError) as error:
                 Vault.account_path(value)
@@ -390,12 +371,12 @@ class SessionAndRequestTests(VaultTestCase):
             result, {"request_id": "request-123", "decision": "confirm", "status": "accepted-by-PVWA"}
         )
         self.vault.request.reset_mock()
-        self.vault.request_decision("request-123", "reject", "x" * MAX_REASON_LENGTH)
+        self.vault.request_decision("request-123", "reject", "x" * 1024)
         for decision, reason in (
             ("bulk-confirm", "Approved maintenance"),
             ("confirm", ""),
             ("confirm", "   "),
-            ("confirm", "x" * (MAX_REASON_LENGTH + 1)),
+            ("confirm", "x" * 1025),
             ("confirm", 12345),
         ):
             with self.assertRaises(ValueError) as error:
@@ -435,7 +416,7 @@ class AccessRequestTests(VaultTestCase):
             ticket_id="CHG1",
             ticket_system="ServiceNow",
             from_date=0,
-            to_date=MAX_WINDOW_SECONDS,
+            to_date=253402300799,
         )
         self.vault.request.assert_called_once_with(
             "POST",
@@ -448,7 +429,7 @@ class AccessRequestTests(VaultTestCase):
                 "TicketID": "CHG1",
                 "TicketingSystem": "ServiceNow",
                 "FromDate": 0,
-                "ToDate": MAX_WINDOW_SECONDS,
+                "ToDate": 253402300799,
             },
         )
 
@@ -458,8 +439,8 @@ class AccessRequestTests(VaultTestCase):
                 self.vault.access_request("1_2", "Approved maintenance", "PSM-SSH", **options)
             self.assertEqual(str(error.exception), "Supply ticket ID and system together")
         for ticket_id, ticket_system in (
-            ("x" * (MAX_TICKET_LENGTH + 1), "ServiceNow"),
-            ("CHG1", "x" * (MAX_TICKET_LENGTH + 1)),
+            ("x" * 257, "ServiceNow"),
+            ("CHG1", "x" * 257),
             (12345, "ServiceNow"),
         ):
             with self.assertRaises(ValueError) as error:
@@ -476,11 +457,11 @@ class AccessRequestTests(VaultTestCase):
             "1_2",
             "Approved maintenance",
             "PSM-SSH",
-            ticket_id="x" * MAX_TICKET_LENGTH,
+            ticket_id="x" * 256,
             ticket_system="ServiceNow",
         )
         payload = self.vault.request.call_args.args[2]
-        self.assertEqual(len(payload["TicketID"]), MAX_TICKET_LENGTH)
+        self.assertEqual(len(payload["TicketID"]), 256)
         self.vault.request.assert_called_once()
 
     def test_access_request_window_validation(self):
@@ -493,7 +474,7 @@ class AccessRequestTests(VaultTestCase):
             {"from_date": "100", "to_date": 200},
             {"from_date": 100.0, "to_date": 200},
             {"from_date": -1, "to_date": 200},
-            {"from_date": 100, "to_date": MAX_WINDOW_SECONDS + 1},
+            {"from_date": 100, "to_date": 253402300800},
         ):
             with self.assertRaises(ValueError) as error:
                 self.vault.access_request("1_2", "Approved maintenance", "PSM-SSH", **options)
@@ -501,7 +482,7 @@ class AccessRequestTests(VaultTestCase):
         self.vault.request.assert_not_called()
 
     def test_access_request_reason_and_component_validation(self):
-        for reason in ("", "   ", 12345, "x" * (MAX_REASON_LENGTH + 1)):
+        for reason in ("", "   ", 12345, "x" * 1025):
             with self.assertRaises(ValueError) as error:
                 self.vault.access_request("1_2", reason, "PSM-SSH")
             self.assertEqual(str(error.exception), "A bounded request reason is required")
@@ -512,7 +493,7 @@ class AccessRequestTests(VaultTestCase):
         with self.assertRaises(ValueError):
             self.vault.access_request("../Accounts", "Approved maintenance", "PSM-SSH")
         self.vault.request.assert_not_called()
-        self.vault.access_request("1_2", "x" * MAX_REASON_LENGTH, "PSM-SSH")
+        self.vault.access_request("1_2", "x" * 1024, "PSM-SSH")
         self.vault.request.assert_called_once()
 
 
@@ -623,14 +604,14 @@ class ConnectTests(VaultTestCase):
         )
 
     def test_connect_ticket_pairing_and_size_bounds(self):
-        self.vault.connect("1_2", "PSM-RDP", "Approved maintenance", "x" * MAX_TICKET_LENGTH, "ServiceNow")
+        self.vault.connect("1_2", "PSM-RDP", "Approved maintenance", "x" * 256, "ServiceNow")
         payload = self.vault.request.call_args.args[2]
         self.assertEqual(set(payload), {"ConnectionComponent", "reason", "TicketId", "TicketingSystemName"})
-        self.assertEqual(len(payload["TicketId"]), MAX_TICKET_LENGTH)
+        self.assertEqual(len(payload["TicketId"]), 256)
         self.vault.request.reset_mock()
         for ticket_id, ticket_system in (
-            ("x" * (MAX_TICKET_LENGTH + 1), "ServiceNow"),
-            ("CHG1", "x" * (MAX_TICKET_LENGTH + 1)),
+            ("x" * 257, "ServiceNow"),
+            ("CHG1", "x" * 257),
         ):
             with self.assertRaises(ValueError) as error:
                 self.vault.connect("1_2", "PSM-RDP", "Approved maintenance", ticket_id, ticket_system)
@@ -649,7 +630,7 @@ class ConnectTests(VaultTestCase):
             ("PSM-SSH", ""),
             ("PSM-SSH", "   "),
             ("PSM-SSH", 12345),
-            ("PSM-SSH", "x" * (MAX_REASON_LENGTH + 1)),
+            ("PSM-SSH", "x" * 1025),
         ):
             with self.assertRaises(ValueError) as error:
                 self.vault.connect("1_2", component, reason)
@@ -675,8 +656,10 @@ class AccountLookupTests(VaultTestCase):
                 {"id": "1_2", "name": name},
                 {"id": "3_4", "name": name + "-copy"},
                 {"id": "5_6", "name": "FAKE-OTHER"},
+                None,
+                VENDOR_TEXT,
             ],
-            "count": 3,
+            "count": 5,
         }
         self.assertEqual(self.vault.find_rotation_accounts(operation), [{"id": "1_2", "name": name}])
         self.vault.request.assert_called_once_with("GET", "/Accounts?search=" + name + "&limit=1000")
@@ -711,6 +694,8 @@ class AccountLookupTests(VaultTestCase):
             {"id": "1_2", "name": "host-1", "safeName": "Guests"},
             {"id": "3_4", "name": "host-1", "safeName": "OtherSafe"},
             {"id": "5_6", "name": "host-2", "safeName": "Guests"},
+            None,
+            VENDOR_TEXT,
         ]
         self.vault.request.return_value = {"value": value, "count": len(value)}
         self.assertEqual(self.vault.find_accounts_by_name("host-1", "Guests"), [value[0]])

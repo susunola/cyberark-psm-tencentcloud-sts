@@ -61,9 +61,11 @@ def allowed_settings() -> dict:
 
 
 class IdentifierTests(unittest.TestCase):
-    def test_identifier_accepts_bounded_ascii_and_returns_it_unchanged(self):
-        self.assertEqual(validate_identifier("Ab_1-2"), "Ab_1-2")
-        self.assertEqual(validate_identifier("x" * 256), "x" * 256)
+    def test_identifier_accepts_bounded_ascii_by_returning_without_error(self):
+        # validate_identifier is a contract check; it validates and returns None.
+        for value in ("Ab_1-2", "x" * 256):
+            with self.subTest(value=value[:8], length=len(value)):
+                self.assertIsNone(validate_identifier(value))
 
     def test_identifier_rejects_everything_else(self):
         for value in (None, 42, b"old-id", "a", "x" * 257, "bad id", "../key", "key;drop"):

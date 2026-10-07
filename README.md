@@ -121,8 +121,8 @@ Version 0.3.0 adds `scripts/pamctl.py`: CAM/CVM discovery, guest onboarding prop
 | `cam-assume-policy.example.json` | Caller sub-user permission example; replace the account and role |
 | `WebFormFields.template.txt` | Credential injection mapping; verify against the installed PSM version |
 | `requirements.in` / `requirements.lock.txt` | Runtime dependency ranges and tested versions |
-| `requirements-dev.txt` | Pinned lint, type-check and test tooling used by the quality gate |
-| `pyproject.toml` | Packaging metadata plus ruff, mypy, pytest and coverage configuration |
+| `requirements-dev.txt` | Pinned lint, type-check and coverage tooling used by the quality gate |
+| `pyproject.toml` | Packaging metadata plus the ruff, mypy and coverage configuration and their gate |
 | `.pre-commit-config.yaml` | Optional git hooks pinned to upstream tags; mirrors the CI quality job |
 | `pam/` | Version-neutral cloud lifecycle and PVWA REST components used by `scripts/pamctl.py` |
 | `tests/` | Offline tests using mock credentials, mocked cloud APIs and loopback HTTP |
@@ -183,14 +183,16 @@ Run the quality gate from the full-source directory after creating the managemen
 
 ```powershell
 & .\.venv\Scripts\python.exe -m ruff check .
-& .\.venv\Scripts\python.exe -m ruff format --check .
 & .\.venv\Scripts\python.exe -m mypy
-& .\.venv\Scripts\python.exe -m pytest -q
+& .\.venv\Scripts\python.exe -m coverage run -m unittest discover -s tests
+& .\.venv\Scripts\python.exe -m coverage report
 ```
 
-`pytest` enforces the coverage threshold declared in `pyproject.toml` (95%, currently measured at 99.3%), so a change that removes test coverage fails the gate. Use `--no-cov` while iterating; `python -m unittest discover -s tests -v` also runs the suite, which is what CI's OS/Python matrix uses.
+`mypy` reads its target list from `pyproject.toml`, so the checked surface (the bridge, federation, security, `pam/` and `scripts/`) is defined in one place. `coverage report` enforces the 95% threshold declared in `pyproject.toml` — currently measured at 99%, with 13 of 16 modules at 100% — so a change that removes coverage fails the gate.
 
-CI additionally runs a dedicated quality job (ruff lint, ruff format check, strict mypy, pytest with coverage) plus a real Redis job for the shared-token backend.
+Ruff checks lint only. Formatting is deliberately not enforced because the test and script suites keep intentional compact one-liners.
+
+CI additionally runs a dedicated quality job (the same lint, mypy and coverage gate) plus a real Redis job for the shared-token backend.
 
 Tests cover signing and encoding, destination restrictions, proxy authentication, CSRF replay, role/caller allowlists, SDK request construction, expiring credentials, validation and sanitization of every CLI/API boundary, staged-rotation state transitions, and redacted errors. Mock STS and cloud calls do not establish live login compatibility.
 

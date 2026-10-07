@@ -119,8 +119,8 @@ flowchart TB
 - `cam-assume-policy.example.json`：调用子用户的 AssumeRole 权限示例，替换账号和角色后使用。
 - `WebFormFields.template.txt`：PSM Web 凭据注入映射，必须与安装版本核对。
 - `requirements.in`：依赖范围；部署使用本包 `requirements.lock.txt` 的实际测试版本。
-- `requirements-dev.txt`：质量门禁使用的固定版本 lint、类型检查和测试工具。
-- `pyproject.toml`：打包元数据，以及 ruff、mypy、pytest 和覆盖率配置。
+- `requirements-dev.txt`：质量门禁使用的固定版本 lint、类型检查与覆盖率工具。
+- `pyproject.toml`：打包元数据，以及 ruff、mypy、覆盖率的配置与门禁。
 - `.pre-commit-config.yaml`：可选的 git 钩子，固定到上游 tag，与 CI 质量任务一致。
 - `pam/`：与版本无关的云生命周期与 PVWA REST 组件，供 `scripts/pamctl.py` 使用。
 - `tests/`：离线自动化验证，使用模拟凭据、模拟云接口和本地回环 HTTP。
@@ -181,14 +181,16 @@ flowchart TB
 
 ```powershell
 & .\.venv\Scripts\python.exe -m ruff check .
-& .\.venv\Scripts\python.exe -m ruff format --check .
 & .\.venv\Scripts\python.exe -m mypy
-& .\.venv\Scripts\python.exe -m pytest -q
+& .\.venv\Scripts\python.exe -m coverage run -m unittest discover -s tests
+& .\.venv\Scripts\python.exe -m coverage report
 ```
 
-`pytest` 会执行 `pyproject.toml` 中声明的覆盖率阈值（95%，当前实测 99.3%），覆盖率下降会直接使门禁失败。开发过程中可用 `--no-cov` 跳过；`python -m unittest discover -s tests -v` 同样可运行测试，CI 的系统/Python 矩阵即使用该方式。
+`mypy` 的检查范围由 `pyproject.toml` 统一声明（桥接、federation、security、`pam/` 与 `scripts/`），只需维护一处。`coverage report` 执行 `pyproject.toml` 中声明的 95% 阈值——当前实测 99%，16 个模块中 13 个为 100%——覆盖率下降会直接使门禁失败。
 
-CI 另设独立质量任务（ruff 检查、ruff 格式校验、严格 mypy、带覆盖率门禁的 pytest），以及针对共享令牌后端的真实 Redis 任务。
+ruff 只做代码检查，刻意不强制格式化：测试与脚本保留了有意为之的紧凑写法。
+
+CI 另设独立质量任务（同一套 lint、mypy 与覆盖率门禁），以及针对共享令牌后端的真实 Redis 任务。
 
 测试覆盖签名与 URL 编码、目的域名约束、代理认证边界、CSRF 重放、角色及调用者白名单、SDK 请求构造、凭据过期、各 CLI/API 边界的校验与脱敏、两阶段轮换状态迁移，以及失败信息脱敏。使用模拟 STS 与模拟云接口，不证明云端登录兼容性。
 

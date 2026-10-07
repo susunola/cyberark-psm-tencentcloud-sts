@@ -15,7 +15,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from configuration import MAX_CONFIG_BYTES, load_settings, validate_settings
+from configuration import load_settings, validate_settings
 from federation import FederationError
 from pam import maintenance
 from pam.files import private_output, read_json
@@ -383,11 +383,11 @@ class ConfigurationLoadBoundaryTests(unittest.TestCase):
         document = json.dumps(settings()).encode("utf-8")
         with tempfile.TemporaryDirectory() as folder:
             at_limit = Path(folder) / "at-limit.json"
-            at_limit.write_bytes(document + b" " * (MAX_CONFIG_BYTES - len(document)))
-            self.assertEqual(at_limit.stat().st_size, MAX_CONFIG_BYTES)
+            at_limit.write_bytes(document + b" " * (1024 * 1024 - len(document)))
+            self.assertEqual(at_limit.stat().st_size, 1024 * 1024)
             self.assertEqual(load_settings(at_limit), settings())
             over_limit = Path(folder) / "over-limit.json"
-            over_limit.write_bytes(document + b" " * (MAX_CONFIG_BYTES + 1 - len(document)))
+            over_limit.write_bytes(document + b" " * (1024 * 1024 + 1 - len(document)))
             with self.assertRaisesRegex(ValueError, "size limit"):
                 load_settings(over_limit)
 

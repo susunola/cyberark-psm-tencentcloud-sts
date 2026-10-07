@@ -2,16 +2,15 @@
 
 ## Unreleased
 
-- Add `pyproject.toml` with packaging metadata and enforced ruff, strict mypy, pytest and coverage configuration; add a pinned `requirements-dev.txt` for the quality gate.
-- Add a CI quality job (ruff lint, ruff format check, strict mypy, pytest with coverage gate) and an optional `.pre-commit-config.yaml` pinned to upstream tags; sync the shipped workflow template.
-- Add type annotations and `TokenStoreLike` structural typing across the bridge, federation, security and `pam/` modules; strict mypy now passes with no `Any` leaks.
-- Replace inline magic numbers, duplicated probe-label maps and repeated parser construction with named constants, shared helpers and per-command CLI handlers; split `scripts/pamctl.py` and `scripts/build_release.py` into testable functions.
-- Normalize formatting across source, scripts and tests; expand `.gitignore` to cover coverage/tooling caches and generated export artifacts.
-- Document the quality gate, code conventions and sanitized-error policy in the contribution guide and both READMEs.
-- Expand the offline suite to cover request construction, validation, sanitization, pagination, token backends, maintenance locking, staged-rotation refusals and both token stores; the enforced coverage gate is now 95%.
+- Adopt one quality toolchain for local use and CI: ruff for lint, mypy for typing and `coverage run -m unittest discover` for the suite. `requirements-dev.txt` pins the tooling and a pre-commit configuration mirrors it on upstream tags.
+- Raise the enforced coverage gate from 80% to 95%; the measured total is 99% with 13 of 16 modules at 100%.
+- Define the type-checked surface once in `pyproject.toml` and extend it to `scripts/`, so the CLI that drives real credentials is checked too.
+- Fix the `mypy` step failing on `waitress`, which ships no type stubs; only that import code is suppressed, so every real type error still fails the build.
 - Fix `pam.audit.event` so caller fields can no longer overwrite `schema_version` or `timestamp`, keeping emitted records unforgeable at the schema level.
-- Fix non-string input handling: `pam.vault` account IDs, connect ticket fields and non-object search results now raise `ValueError`/`VaultError` instead of `TypeError`/`AttributeError`, and both token stores validate capacity and TTL type (rejecting booleans and numeric strings).
-- Keep the stricter PVWA base-URL, token and route rules from 0.5.2 while adding the local quality gate around them.
+- Fix non-string and malformed input handling: both token stores now validate capacity and TTL type (rejecting booleans and numeric strings) instead of raising `TypeError`, and `pam.vault` rejects non-string account IDs and non-object search results with `ValueError`/`VaultError` instead of `TypeError`/`AttributeError`.
+- Expand the offline suite with additional adapter, boundary and failure-path tests covering request construction, error sanitization, pagination and totals, token backends, maintenance locking, staged-rotation refusals and startup failures.
+- Do not enforce `ruff format`: the test and script suites keep intentional compact one-liners, so lint is enforced and formatting is not.
+- Keep the stricter PVWA base-URL, token, route and inventory rules from 0.5.2 unchanged.
 
 ## 0.5.2 — 2026-10-07
 
@@ -21,6 +20,12 @@
 - Add offline documentation/CLI validation and dependency consistency checks to all CI jobs.
 - Include a deterministic CycloneDX dependency inventory beside source distributions; this is not a vulnerability scan or deployed-host inventory.
 - Add inventory/transport failure regression tests without claiming live PAM acceptance.
+- Raise code quality to a strict, CI-enforced baseline: add `pyproject.toml` with ruff, mypy (disallow untyped defs) and coverage configuration.
+- Add complete type annotations across `app`, `configuration`, `federation`, `runtime`, `security`, `version` and all `pam` modules.
+- Fix TokenStore clock binding so tests can patch `time.monotonic`; keep fail-closed secret-redaction behavior on every broad exception (documented `noqa: BLE001`).
+- Replace `os.replace` with `Path.replace`, add explicit `check=` on `subprocess.run`, convert `dict()` calls to literals and sort imports.
+- Add regression tests for configuration/federation/security/app failure paths; unit coverage for core modules 89–100% (overall 84%).
+- CI now runs ruff + mypy + coverage (`--fail-under=80`) on every push in addition to the existing OS/Python matrix and Redis job.
 
 ## 0.5.1 — 2026-10-06
 

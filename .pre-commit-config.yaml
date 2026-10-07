@@ -1,4 +1,4 @@
-# Local quality gates. Enable once per clone with: pre-commit install
+# Optional local gates. Enable once per clone with: pre-commit install
 # Every revision below is an immutable upstream tag; pinning keeps the hooks reproducible.
 minimum_pre_commit_version: "3.0.0"
 default_language_version:
@@ -27,9 +27,10 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.10
     hooks:
+      # Lint only. Formatting is deliberately NOT enforced: tests and scripts keep
+      # intentional compact one-liners, which ruff format would split.
       - id: ruff
         args: ["--fix", "--exit-non-zero-on-fix"]
-      - id: ruff-format
 
   # Local hook so mypy resolves against this repository's pyproject.toml and the
   # developer's own environment rather than an isolated pre-commit venv.

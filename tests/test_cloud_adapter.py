@@ -9,15 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from federation import FederationError
-from pam.cloud import (
-    CAM_ENDPOINT,
-    CVM_ENDPOINT,
-    CVM_PAGE_LIMIT,
-    REQUEST_TIMEOUT,
-    STS_ENDPOINT,
-    Cloud,
-    uin,
-)
+from pam.cloud import Cloud, uin
 
 CAM_CLIENT = "tencentcloud.cam.v20190116.cam_client.CamClient"
 CVM_CLIENT = "tencentcloud.cvm.v20170312.cvm_client.CvmClient"
@@ -79,9 +71,8 @@ class CloudConstructionTests(unittest.TestCase):
         self.assertEqual(cam.call_args.args[1], "ap-guangzhou")
         self.assertIs(cam.call_args.args[0], cloud.credential)
         profile = cam.call_args.args[2]
-        self.assertEqual(profile.httpProfile.endpoint, CAM_ENDPOINT)
         self.assertEqual(profile.httpProfile.endpoint, "cam.intl.tencentcloudapi.com")
-        self.assertEqual(profile.httpProfile.reqTimeout, REQUEST_TIMEOUT)
+        self.assertEqual(profile.httpProfile.reqTimeout, 15)
 
     def test_default_region_is_singapore(self):
         with patch(CAM_CLIENT):
@@ -303,9 +294,8 @@ class VerifyIdentityTests(unittest.TestCase):
             [("AKID-FAKE-ID", "fake-secret-key"), ("AKID-ROTATED-ID", "rotated-fake-key")],
         )
         self.assertEqual(sts.call_args.args[1], "ap-singapore")
-        self.assertEqual(sts.call_args.args[2].httpProfile.endpoint, STS_ENDPOINT)
         self.assertEqual(sts.call_args.args[2].httpProfile.endpoint, "sts.intl.tencentcloudapi.com")
-        self.assertEqual(sts.call_args.args[2].httpProfile.reqTimeout, REQUEST_TIMEOUT)
+        self.assertEqual(sts.call_args.args[2].httpProfile.reqTimeout, 15)
 
     def test_identity_mismatch_is_rejected_without_echoing_the_secret(self):
         with patch(CAM_CLIENT), patch(STS_CLIENT) as sts:
@@ -363,7 +353,6 @@ class DiscoverTests(unittest.TestCase):
             },
         )
         self.assertEqual(cvm.call_args.args[1], "ap-singapore")
-        self.assertEqual(cvm.call_args.args[2].httpProfile.endpoint, CVM_ENDPOINT)
         self.assertEqual(cvm.call_args.args[2].httpProfile.endpoint, "cvm.intl.tencentcloudapi.com")
         keys_request = cam.return_value.ListAccessKeys.call_args.args[0]
         self.assertEqual(keys_request.TargetUin, 123)
@@ -399,7 +388,7 @@ class DiscoverTests(unittest.TestCase):
         calls = cvm.return_value.DescribeInstances.call_args_list
         self.assertEqual(len(calls), 2)
         self.assertEqual([call.args[0].Offset for call in calls], [0, 2])
-        self.assertEqual({call.args[0].Limit for call in calls}, {CVM_PAGE_LIMIT})
+        self.assertEqual({call.args[0].Limit for call in calls}, {100})
         self.assertEqual([item["id"] for item in inventory["instances"]], ["ins-1", "ins-2", "ins-3"])
 
     def test_empty_page_before_total_count_is_incomplete_inventory(self):

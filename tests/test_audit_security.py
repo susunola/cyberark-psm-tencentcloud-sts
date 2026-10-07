@@ -5,7 +5,7 @@ import io
 import json
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 from redis.backoff import NoBackoff
 from redis.retry import Retry
 
-from pam.audit import MAX_AUDIT_LINES, MAX_LINE_BYTES, SCHEMA_VERSION, event, summarize
+from pam.audit import event, summarize
 from security import (
     CONSUME_SCRIPT,
     ISSUE_SCRIPT,
@@ -85,14 +85,14 @@ def write_shared_config(folder, payload):
 class AuditEventTests(unittest.TestCase):
     def test_event_emits_schema_version_and_utc_millisecond_timestamp(self):
         payload = json.loads(event({"event": "http_result", "request_id": REQUEST_ID}))
-        self.assertEqual(payload["schema_version"], SCHEMA_VERSION)
+        self.assertEqual(payload["schema_version"], 1)
         self.assertEqual(payload["event"], "http_result")
         self.assertEqual(payload["request_id"], REQUEST_ID)
         stamp = payload["timestamp"]
         self.assertRegex(stamp, r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+00:00$")
         parsed = datetime.fromisoformat(stamp)
-        self.assertEqual(parsed.tzinfo, timezone.utc)
-        self.assertLess(abs((datetime.now(timezone.utc) - parsed).total_seconds()), 5)
+        self.assertEqual(parsed.tzinfo, UTC)
+        self.assertLess(abs((datetime.now(UTC) - parsed).total_seconds()), 5)
 
     def test_event_reserved_keys_cannot_be_clobbered_by_callers(self):
         # The schema tag and timestamp are owned by the emitter, so a caller
@@ -101,7 +101,7 @@ class AuditEventTests(unittest.TestCase):
             event({"schema_version": 99, "timestamp": "caller-supplied", "audit_label": "PSM-user"})
         )
         self.assertEqual(set(payload), {"schema_version", "timestamp", "audit_label"})
-        self.assertEqual(payload["schema_version"], SCHEMA_VERSION)
+        self.assertEqual(payload["schema_version"], 1)
         self.assertNotEqual(payload["timestamp"], "caller-supplied")
         self.assertRegex(payload["timestamp"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+00:00$")
         self.assertEqual(payload["audit_label"], "PSM-user")
@@ -109,7 +109,7 @@ class AuditEventTests(unittest.TestCase):
 
 class AuditSummarizeBoundsTests(unittest.TestCase):
     def test_invalid_max_lines_is_rejected(self):
-        for value in (0, -1, 1.5, "10", None, True, MAX_AUDIT_LINES + 1, MAX_AUDIT_LINES * 2):
+        for value in (0, -1, 1.5, "10", None, True, 100001, 200000):
             with self.subTest(max_lines=value), self.assertRaises(ValueError):
                 summarize(io.StringIO(""), max_lines=value)
 
@@ -123,12 +123,12 @@ class AuditSummarizeBoundsTests(unittest.TestCase):
 
     def test_line_byte_bound_is_inclusive_and_fails_closed_past_it(self):
         encoded = json.dumps(bridge_row())
-        padded = encoded + " " * (MAX_LINE_BYTES - len(encoded))
-        self.assertEqual(len(padded), MAX_LINE_BYTES)
+        padded = encoded + " " * (8192 - len(encoded))
+        self.assertEqual(len(padded), 8192)
         accepted = summarize(io.StringIO(padded))
         self.assertEqual((accepted["input_lines"], accepted["ignored_lines"]), (1, 0))
         self.assertEqual(accepted["unique_http_events"], 1)
-        junk = summarize(io.StringIO("x" * MAX_LINE_BYTES))
+        junk = summarize(io.StringIO("x" * 8192))
         self.assertEqual((junk["input_lines"], junk["ignored_lines"]), (1, 1))
         with self.assertRaises(ValueError) as error:
             summarize(io.StringIO(padded + "  "))
@@ -356,18 +356,20 @@ class RedisTokenStoreTests(unittest.TestCase):
         self.assertEqual(RedisTokenStore.digest("alice"), RedisTokenStore.digest("alice"))
         self.assertNotEqual(RedisTokenStore.digest("alice"), RedisTokenStore.digest("bob"))
 
-    def test_evaluate_returns_ints_and_sanitizes_every_driver_fault(self):
+    def test_evaluate_returns_the_script_result_verbatim_and_sanitizes_every_driver_fault(self):
         client = MagicMock()
         store = RedisTokenStore(client)
+        # evaluate hands the driver reply back untouched, so a reply that is not the
+        # exact integer 1 must fail closed instead of being parsed into an authorization.
         client.eval.return_value = "1"
-        self.assertEqual(store.evaluate(ISSUE_SCRIPT, "arg"), 1)
+        self.assertEqual(store.evaluate(ISSUE_SCRIPT, "arg"), "1")
+        self.assertIsNone(store.issue("alice"))
         client.eval.return_value = b"0"
-        self.assertEqual(store.evaluate(ISSUE_SCRIPT, "arg"), 0)
+        self.assertEqual(store.evaluate(ISSUE_SCRIPT, "arg"), b"0")
+        self.assertIsNone(store.issue("alice"))
         client.eval.return_value = "not-a-number"
-        with self.assertRaises(TokenStoreError) as error:
-            store.evaluate(ISSUE_SCRIPT, "arg")
-        self.assertEqual(str(error.exception), "Token backend unavailable")
-        self.assertIsNone(error.exception.__cause__)
+        self.assertEqual(store.evaluate(ISSUE_SCRIPT, "arg"), "not-a-number")
+        self.assertIsNone(store.issue("alice"))
         for fault in (
             ConnectionError("FAKE-DSN redis://user:secret@private.invalid/0"),
             TimeoutError("FAKE-DSN"),
@@ -402,11 +404,9 @@ class RedisTokenStoreTests(unittest.TestCase):
         self.assertEqual(extra[3], RedisTokenStore.digest("alice"))
         self.assertEqual(extra[4:], [7, 45_000])
         self.assertNotIn(token, str(client.eval.call_args))
-        for result in (0, 2, -1):
+        for result in (0, 2, -1, "1", b"1"):
             client.eval.return_value = result
             self.assertIsNone(store.issue("alice"))
-        client.eval.return_value = b"1"
-        self.assertIsInstance(store.issue("alice"), str)
 
     def test_consume_is_true_only_for_a_script_result_of_one(self):
         client = MagicMock()
@@ -521,7 +521,10 @@ class ConfiguredTokenStoreTests(unittest.TestCase):
 class SharedEnvironmentTests(unittest.TestCase):
     def test_unset_shared_config_returns_the_input_mapping_unchanged(self):
         environment = {"PSM_TC_REDIS_URL": REDIS_URL, "PSM_TC_PROXY_KEY": "p" * 32}
-        self.assertIs(shared_environment(environment), environment)
+        resolved = shared_environment(environment)
+        # An unset shared config passes the environment through unchanged, as a copy.
+        self.assertEqual(resolved, environment)
+        self.assertIsNot(resolved, environment)
         self.assertEqual(shared_environment({}), {})
 
     def test_shared_config_overrides_cluster_settings(self):
