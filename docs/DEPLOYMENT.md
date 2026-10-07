@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-Use a staging PSM matching the target production version. Supply a machine-wide supported Python 3.11–3.14 installation readable by LocalService, a reviewed WinSW binary with its verified SHA256, IIS Windows Authentication, URL Rewrite and ARR. No WinSW executable is distributed here. Compare the XML/commands with the selected WinSW release before deployment.
+Use a staging PSM matching the target production version. Supply a machine-wide supported Python 3.11–3.14 installation readable by the service account, a reviewed WinSW binary with its verified SHA256, IIS Windows Authentication, URL Rewrite and ARR. No WinSW executable is distributed here. Compare the XML/commands with the selected WinSW release before deployment.
 
 Official references: [WinSW](https://github.com/winsw/winsw), [IIS reverse proxy](https://learn.microsoft.com/en-us/iis/extensions/url-rewrite-module/reverse-proxy-with-url-rewrite-v2-and-application-request-routing), [URL Rewrite configuration](https://learn.microsoft.com/en-us/iis/extensions/url-rewrite-module/url-rewrite-module-configuration-reference).
 
@@ -20,7 +20,7 @@ Official references: [WinSW](https://github.com/winsw/winsw), [IIS reverse proxy
   -SettingsFile 'C:\Staging\settings.json'
 ```
 
-The script creates a venv, installs hash-verified dependencies (`--require-hashes` against `requirements.lock.hashes.txt`; regenerate that file with `scripts/pin_lock_hashes.py` after any lock change, otherwise the install falls back to version pins with a warning), generates independent random proxy/session keys in ACL-protected service XML, installs the service as LocalService, and starts it, then verifies authenticated backend readiness. It preserves diagnostic files on failure. It is not safe to run under transcript logging that captures generated secret values; do not enable debug tracing.
+The script creates a venv, installs hash-verified dependencies (`--require-hashes` against `requirements.lock.hashes.txt`; regenerate that file with `scripts/pin_lock_hashes.py` after any lock change, otherwise the install falls back to version pins with a warning), generates independent random proxy/session keys in ACL-protected service XML, installs the service under its own virtual account, and starts it, then verifies authenticated backend readiness. It preserves diagnostic files on failure. It is not safe to run under transcript logging that captures generated secret values; do not enable debug tracing.
 
 4. Create a dedicated IIS HTTPS site with a trusted certificate and its own physical root. Enable Windows Authentication, disable anonymous authentication, and restrict authorization to intended PSM service accounts. Do not alter unrelated IIS sites.
 5. Enable ARR proxy forwarding. Permit `HTTP_X_PSM_BRIDGE_KEY` and `HTTP_X_PSM_AUTHENTICATED_USER` as URL Rewrite server variables at the necessary scope. Copy `web.config.generated` from the installation directory to the dedicated site as `web.config`. The installer re-protects that file so only SYSTEM and administrators can read it, and you should delete it from the installation directory once it is in place. Restrict the site copy's read access to administrators and the site's application pool identity. Never serve service XML/configuration files from that web root.
@@ -55,7 +55,7 @@ Run elevated PowerShell: `.\scripts\Uninstall-Bridge.ps1`. It stops/removes the 
 | Backend 502 | Safe correlation ID, STS network reachability, key state, trust policy, AssumeRole permission, duration |
 | Cloud login failure | Clock synchronization, role console-login enabled, signature/callback and cloud policy |
 | Recording absent | PSM framework/driver/PID configuration; bridge cannot create recordings |
-| Service fails to start | Machine-wide Python ACLs, LocalService venv read access, log folder write access, invalid settings |
+| Service fails to start | Machine-wide Python ACLs, service-account venv read access, log folder write access, invalid settings |
 
 Only collect sanitized diagnostics. Do not attach complete URLs, cookies, SecretKeys, proxy secrets, service XML or raw request bodies to tickets.
 

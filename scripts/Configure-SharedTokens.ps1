@@ -29,7 +29,10 @@ try {
     $env:PSM_TC_SHARED_CONFIG = $OldShared
 }
 [System.IO.File]::Copy($SharedSettingsFile, $ConfigPath, $false)
-& icacls.exe $ConfigPath '/inheritance:r' '/grant:r' '*S-1-5-18:F' '*S-1-5-32-544:F' '*S-1-5-19:R' | Out-Null
+# The service reads this file as its own virtual account. LocalService is deliberately not
+# granted access: an unrelated service on the same host using that shared identity must not
+# be able to read the shared Redis credential or the session signing key.
+& icacls.exe $ConfigPath '/inheritance:r' '/grant:r' '*S-1-5-18:F' '*S-1-5-32-544:F' 'NT SERVICE\PSMTencentCloudSTS:R' | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Protecting shared configuration failed; service configuration has not been changed.' }
 Save-SharedServiceConfig -Document $Xml -XmlPath $XmlPath -BackupPath $BackupPath
 if ($Restart) {

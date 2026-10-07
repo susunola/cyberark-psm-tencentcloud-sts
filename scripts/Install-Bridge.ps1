@@ -52,6 +52,10 @@ try {
     $SessionKey = New-Secret
     $Escape = { param($Value) [System.Security.SecurityElement]::Escape($Value) }
     $SafeDir = & $Escape $InstallDir
+    # A virtual service account, not the shared LocalService identity: the proxy key sits in
+    # the service XML, and LocalService is used by unrelated services on the same host, any
+    # of which could otherwise read it and forge an identity header past the IIS boundary.
+    $ServiceAccount = 'NT SERVICE\PSMTencentCloudSTS'
     $Xml = @"
 <service>
   <id>PSMTencentCloudSTS</id>
@@ -63,7 +67,7 @@ try {
   <env name="PSM_TC_CONFIG" value="$SafeDir\settings.json" />
   <env name="PSM_TC_PROXY_KEY" value="$ProxyKey" />
   <env name="PSM_TC_SESSION_KEY" value="$SessionKey" />
-  <serviceaccount><username>NT AUTHORITY\LocalService</username></serviceaccount>
+  <serviceaccount><username>$ServiceAccount</username></serviceaccount>
   <startmode>Automatic</startmode>
   <onfailure action="restart" delay="10 sec" />
   <logpath>$SafeDir\logs</logpath>
@@ -72,19 +76,22 @@ try {
 "@
     Set-Content -LiteralPath (Join-Path $InstallDir 'PSMTencentCloudSTS.xml') -Value $Xml -Encoding UTF8
     New-Item -ItemType Directory -Path (Join-Path $InstallDir 'logs') | Out-Null
-    Invoke-Checked -Exe 'icacls.exe' -Arguments @($InstallDir, '/grant', '*S-1-5-19:(OI)(CI)RX')
-    Invoke-Checked -Exe 'icacls.exe' -Arguments @((Join-Path $InstallDir 'logs'), '/grant', '*S-1-5-19:(OI)(CI)M')
     # This generated file contains the proxy secret. Only copy it into an ACL-protected IIS root.
     $WebConfig = Get-Content -Raw -LiteralPath (Join-Path $SourceDir 'deployment\web.config.template')
     $WebConfig = $WebConfig.Replace('REPLACE_WITH_PRIVATE_PROXY_KEY', $ProxyKey)
     $WebConfigPath = Join-Path $InstallDir 'web.config.generated'
     Set-Content -LiteralPath $WebConfigPath -Value $WebConfig -Encoding UTF8
-    # The install directory grants LocalService read (the service XML needs it), so this
-    # file must be re-protected explicitly or any LocalService process could read the
-    # proxy key and bypass the IIS authentication boundary with a forged identity header.
+    # This file carries the same proxy secret the service reads from its own XML. The service
+    # account needs read on the install directory for its configuration and code, but has no
+    # reason to read the IIS site configuration, so it is re-protected to SYSTEM and
+    # administrators: without this key a forged identity header is refused at the proxy.
     Invoke-Checked -Exe 'icacls.exe' -Arguments @($WebConfigPath, '/inheritance:r', '/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:R')
     $Installed = $true
     Invoke-Checked -Exe (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') -Arguments @('install')
+    # The service manager creates the virtual account when the service is registered, so the
+    # name cannot be resolved before this point and the grants have to follow `install`.
+    Invoke-Checked -Exe 'icacls.exe' -Arguments @($InstallDir, '/grant', "${ServiceAccount}:(OI)(CI)RX")
+    Invoke-Checked -Exe 'icacls.exe' -Arguments @((Join-Path $InstallDir 'logs'), '/grant', "${ServiceAccount}:(OI)(CI)M")
     Invoke-Checked -Exe (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') -Arguments @('start')
     $Ready = $false
     for ($Attempt = 0; $Attempt -lt 15; $Attempt++) {

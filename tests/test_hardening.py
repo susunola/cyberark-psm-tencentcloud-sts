@@ -189,17 +189,19 @@ class HardeningTests(unittest.TestCase):
                 login_url(creds, 'https://console.tencentcloud.com/')
 
     def test_shared_token_config_grants_only_the_service_account_read(self):
-        """The shared Redis/session configuration is readable by LocalService on purpose.
+        """The shared Redis/session configuration is readable by the service account alone.
 
-        Unlike the generated proxy configuration, WinSW must read this file at start-up,
-        so LocalService read is required here. Pin the exact principal set so a future
-        reader does not remove the necessary grant, and pin the absence of a broad one.
+        The service reads this file at start-up as its own virtual account, so that account
+        needs read and the shared LocalService identity must have none: otherwise an
+        unrelated service on the same host could read the Redis credential and the session
+        signing key. Pin the exact principal set so a future reader cannot widen it.
         """
         script = (ROOT / "scripts/Configure-SharedTokens.ps1").read_text(encoding="utf-8")
         self.assertIn("'/inheritance:r'", script)
         self.assertIn("'*S-1-5-18:F'", script)  # SYSTEM
         self.assertIn("'*S-1-5-32-544:F'", script)  # Administrators
-        self.assertIn("'*S-1-5-19:R'", script)  # LocalService, read only
+        self.assertIn("'NT SERVICE\\PSMTencentCloudSTS:R'", script)  # the service's own account, read only
+        self.assertNotIn("*S-1-5-19", script, "LocalService must not be granted access")
         for broad in ("*S-1-1-0", "*S-1-5-32-545", "*S-1-5-11", "*S-1-5-32-546"):
             self.assertNotIn(broad, script, f"{broad} must never be granted")
         # The copy happens first, so the protection immediately follows it.
@@ -281,14 +283,21 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(installer.count("'pip','install'"), 2)
 
     def test_installer_reprotects_the_generated_proxy_config(self):
-        # The install directory grants LocalService read for the service XML, so the
-        # generated file holding the proxy key must be re-protected after it is written.
+        # The generated file holds the proxy key, so it is re-protected after it is written
+        # instead of inheriting the install directory, which grants the service account read.
         installer = (ROOT / "scripts/Install-Bridge.ps1").read_text(encoding="utf-8")
         written = installer.index("web.config.generated'")
         protection = installer.index("/inheritance:r', '/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:R'")
         self.assertLess(written, protection)
-        # Only SYSTEM and administrators, and no LocalService read on that path.
-        self.assertNotIn("*S-1-5-19:F", installer)
+        # The service runs as its own virtual account, never as the shared LocalService.
+        self.assertIn("$ServiceAccount = 'NT SERVICE\\PSMTencentCloudSTS'", installer)
+        self.assertIn("<serviceaccount><username>$ServiceAccount</username></serviceaccount>", installer)
+        self.assertNotIn("*S-1-5-19", installer, "LocalService must not be granted access to the proxy key")
+        # That account only exists once the service is registered, so the grants cannot
+        # precede `install`: before then the name does not resolve.
+        installed = installer.index("-Arguments @('install')")
+        granted = installer.index("${ServiceAccount}:(OI)(CI)RX")
+        self.assertLess(installed, granted)
 
     def test_proxy_template_replaces_rather_than_appends_identity_headers(self):
         template = (ROOT / "deployment" / "web.config.template").read_text(encoding="utf-8")

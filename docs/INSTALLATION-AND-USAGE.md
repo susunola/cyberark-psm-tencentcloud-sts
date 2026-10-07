@@ -36,7 +36,7 @@ PVWA governs authorization. Native PSM governs browser isolation, recording and 
 |---|---|
 | Test PAM environment | Permission to manage platforms, Safes and connection components; ability to test PSM Web and playback |
 | Windows PSM host | Administrator access; organizational approval for the additional service/IIS under the PSM hardening baseline |
-| Python | Machine-wide installation executable by LocalService; CI covers 3.11–3.14 |
+| Python | Machine-wide installation the service account can execute; CI covers 3.11–3.14 |
 | WinSW | Separately obtained, reviewed binary and a SHA256 verified against a trusted source |
 | IIS | Windows Authentication, URL Rewrite, ARR, dedicated HTTPS site and trusted certificate |
 | Tencent Cloud | Dedicated CAM sub-user/API key and ordinary CAM role eligible for console login |
@@ -110,10 +110,10 @@ The installer verifies WinSW, creates a venv, installs locked dependencies, copi
 | `settings.json` | Role/SecretId allowlist; no CAM SecretKey |
 | `PSMTencentCloudSTS.exe` / `.xml` | WinSW and service configuration; XML contains proxy/session secrets |
 | `web.config.generated` | IIS template containing the private proxy key; ACL-restricted to SYSTEM/administrators, delete it from the installation directory after copying |
-| `logs` | LocalService-writable runtime logs |
+| `logs` | service-account-writable runtime logs |
 | `pam\__init__.py`, `pam\audit.py` | Minimal runtime dependencies; full scripts/tests are not installed |
 
-The service runs as `NT AUTHORITY\LocalService`, with read access to runtime/configuration and write access to logs. Ordinary session users must not modify code/settings/secrets. Never serve the installation directory as the IIS site root or commit service XML/generated proxy/shared-secret configuration.
+The service runs as its own virtual account `NT SERVICE\PSMTencentCloudSTS`, with read access to runtime/configuration and write access to logs. Ordinary session users must not modify code/settings/secrets. Never serve the installation directory as the IIS site root or commit service XML/generated proxy/shared-secret configuration.
 
 ```powershell
 Get-Service PSMTencentCloudSTS
@@ -327,7 +327,7 @@ Crash locks are not stolen: inspect processes and remote outcomes first. Existin
 
 Single-node default uses process-memory tokens. Multiple nodes require Redis 7+, TLS/ACLs, a single writable primary, identical role settings/namespace/session key and authenticated identity format. Proxy keys can be node-specific. STS admission is two concurrent calls per node, not globally.
 
-Create protected JSON from the [shared-secret template](../deployment/shared-secrets.example.json), replacing Redis credentials/URL, namespace and a random independent shared `session_key`. Use `rediss://` and a CA file when needed, readable by LocalService. Do not print/commit the file.
+Create protected JSON from the [shared-secret template](../deployment/shared-secrets.example.json), replacing Redis credentials/URL, namespace and a random independent shared `session_key`. Use `rediss://` and a CA file when needed, readable by the service account. Do not print/commit the file.
 
 ```powershell
 .\scripts\Configure-SharedTokens.ps1 `
@@ -361,7 +361,7 @@ The script stops/unregisters the service and retains files for audit/manual clea
 |---|---|
 | Existing directory/service | Inspect previous installation/failure; back up and follow upgrade/recovery |
 | WinSW checksum mismatch | Stop and verify trusted release binary/digest |
-| Startup failure | Offline settings validation, Python/LocalService ACLs, dependencies, logs, CA access, loopback port |
+| Startup failure | Offline settings validation, Python/service-account ACLs, dependencies, logs, CA access, loopback port |
 | IIS 401/403 | Windows Authentication, anonymous disabled, allowed identity, certificate and browser integrated authentication |
 | IIS 500 / backend always 403 | ARR/Rewrite, allowed server variables, REMOTE_USER pipeline availability, matching private proxy key; never bypass with client identity headers |
 | Expired form / 429 | Tokens are single-use/120 seconds with bounded capacity; wait and start a new PVWA connection |

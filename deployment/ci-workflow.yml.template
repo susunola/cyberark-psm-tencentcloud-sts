@@ -65,7 +65,7 @@ jobs:
         with:
           python-version: '3.13'
       # Run the installer for real: administrator rights, icacls DACLs, a WinSW service
-      # under LocalService, and the hash-pinned dependency install. Everything here is
+      # under its own virtual account, and the hash-pinned dependency install. Everything here is
       # behaviour that cannot be observed from Linux or macOS, so the statements live in
       # scripts/ci/ where tests/test_powershell_syntax.py parses every one of them. A step
       # that inlines PowerShell instead is invisible to the parser and only reports its own

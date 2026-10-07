@@ -57,7 +57,7 @@ flowchart TB
         subgraph HOST[Windows PSM host]
             B[Native PSM Web browser]
             I[IIS: HTTPS / Windows Authentication]
-            S[Bridge service: LocalService / 127.0.0.1:8765]
+            S[Bridge service: own virtual account / 127.0.0.1:8765]
             CFG[Protected role allowlist / service secrets]
         end
         PVWA --> B
@@ -139,7 +139,7 @@ Version 0.3.0 adds `scripts/pamctl.py`: CAM/CVM discovery, guest onboarding prop
 
 Follow the [step-by-step manual](docs/INSTALLATION-AND-USAGE.md#install). Run `scripts/Install-Bridge.ps1` from full source in administrator PowerShell, supplying a machine-wide Python executable, reviewed WinSW binary, trusted SHA256 and validated settings file. **Do not pre-create the installation directory**; the installer creates it with restricted ACLs.
 
-The installer registers `PSMTencentCloudSTS` as LocalService, installs locked dependencies, generates independent proxy/session keys and checks readiness. The backend listens on `127.0.0.1:8765`; configure the authenticated HTTPS proxy before PSM connections. Service XML and generated IIS configuration contain secrets and must stay protected.
+The installer registers `PSMTencentCloudSTS` under its own virtual account `NT SERVICE\PSMTencentCloudSTS`, installs locked dependencies, generates independent proxy/session keys and checks readiness. The backend listens on `127.0.0.1:8765`; configure the authenticated HTTPS proxy before PSM connections. Service XML and generated IIS configuration contain secrets and must stay protected.
 
 The installed service contains minimal runtime files. Run administrative scripts and tests from a separate full-source environment. Single-node mode uses in-memory form tokens; [multiple-node deployment](docs/INSTALLATION-AND-USAGE.md#advanced) uses shared Redis tokens and a common session key.
 

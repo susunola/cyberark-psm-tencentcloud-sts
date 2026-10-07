@@ -55,7 +55,7 @@ python scripts/run_maintenance.py --jobs maintenance.json --settings settings.js
 .\scripts\Configure-SharedTokens.ps1 -InstallDir C:\PSM-TencentCloud -SharedSettingsFile C:\Protected\shared-secrets.json
 ```
 
-默认不修改。先停止接收新连接，再添加 `-Apply -Restart`：验证 Redis/TLS、以受限 ACL 复制配置、更新 WinSW 服务。CA 文件必须能被 LocalService 读取。服务 XML 先禁用 DTD 预检，再持有独占更新锁进行原子替换。实际秘密文件与备份不覆盖；崩溃锁需检查后清理。旧 XML 备份到受保护安装目录的 `PSMTencentCloudSTS.xml.before-shared`。部分失败时检查服务和配置，必要时恢复备份与原令牌模式。脚本仅完成语法检查，未在目标 PSM 实机执行。
+默认不修改。先停止接收新连接，再添加 `-Apply -Restart`：验证 Redis/TLS、以受限 ACL 复制配置、更新 WinSW 服务。CA 文件必须能被服务账号读取。服务 XML 先禁用 DTD 预检，再持有独占更新锁进行原子替换。实际秘密文件与备份不覆盖；崩溃锁需检查后清理。旧 XML 备份到受保护安装目录的 `PSMTencentCloudSTS.xml.before-shared`。部分失败时检查服务和配置，必要时恢复备份与原令牌模式。脚本仅完成语法检查，未在目标 PSM 实机执行。
 
 Lua 使用 Redis 服务端时间，限制共享令牌总容量，并在主节点原子验证身份、过期和消费。只存令牌/身份摘要。Redis 故障返回 503，无本地回退，不自动重试消费结果不确定的请求；带代理认证的 `/readyz`（与 `/healthz` 同一检查，只是名称更能说明它做什么）检测 Redis；`/livez` 不需要密钥，只报告存活。两者都不探测 STS 端点：按探测间隔调用会消耗 CAM 的请求配额，而首次登录本就会给出答案。更换会话密钥会使待提交表单失效，需重新发起连接。
 

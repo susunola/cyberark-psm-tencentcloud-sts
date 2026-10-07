@@ -57,7 +57,7 @@ flowchart TB
         subgraph HOST[Windows PSM 主机]
             B[Native PSM Web browser]
             I[IIS: HTTPS / Windows Authentication]
-            S[Bridge service: LocalService / 127.0.0.1:8765]
+            S[Bridge service: own virtual account / 127.0.0.1:8765]
             CFG[受保护角色白名单及服务秘密]
         end
         PVWA --> B
@@ -137,7 +137,7 @@ flowchart TB
 
 按[手册的安装步骤](docs/INSTALLATION-AND-USAGE.zh-CN.md#install)操作。在完整源码目录打开管理员 PowerShell，执行 `scripts/Install-Bridge.ps1`，提供机器级 Python、经审核的 WinSW、可信 SHA256 和已校验配置。**不要预先创建安装目录**，由安装器创建并设置受限 ACL。
 
-安装器以 LocalService 注册 `PSMTencentCloudSTS`，安装锁定依赖、生成独立代理/会话密钥并检查就绪。后端监听 `127.0.0.1:8765`，接入 PSM 前先配置 HTTPS 认证代理。服务 XML 和生成的 IIS 配置含秘密，必须保护。
+安装器以专用虚拟账号 `NT SERVICE\PSMTencentCloudSTS` 注册 `PSMTencentCloudSTS`，安装锁定依赖、生成独立代理/会话密钥并检查就绪。后端监听 `127.0.0.1:8765`，接入 PSM 前先配置 HTTPS 认证代理。服务 XML 和生成的 IIS 配置含秘密，必须保护。
 
 服务目录只包含最小运行文件；管理工具和测试在独立的完整源码环境执行。单节点使用内存表单令牌；[多节点模式](docs/INSTALLATION-AND-USAGE.zh-CN.md#advanced)使用 Redis 共享令牌和统一会话签名密钥。
 

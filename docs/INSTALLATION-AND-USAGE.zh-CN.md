@@ -38,7 +38,7 @@ PVWA 控制连接授权，原生 PSM 控制浏览器隔离、录屏和退出清�
 |---|---|
 | 测试 PAM 环境 | 可管理 PVWA 平台、Safe 和连接组件；可验证 PSM Web 登录与录屏 |
 | Windows PSM 主机 | 由管理员部署；先核对组织 PSM 加固基线是否允许新增服务和 IIS |
-| Python | 机器级安装，LocalService 可执行；CI 覆盖 3.11–3.14 |
+| Python | 机器级安装，服务账号可执行；CI 覆盖 3.11–3.14 |
 | WinSW | 管理员从可信来源取得并审核；提供可信 SHA256，不随源码提供 |
 | IIS | Windows Authentication、URL Rewrite、ARR；独立 HTTPS 站点与受信任证书 |
 | 腾讯云 | 专用 CAM 子用户、API 密钥、可登录控制台的普通 CAM 角色 |
@@ -112,10 +112,10 @@ Set-Location C:\Admin\psm-tencentcloud-sts
 | `settings.json` | 角色/SecretId 白名单，不含 CAM SecretKey |
 | `PSMTencentCloudSTS.exe` / `.xml` | WinSW 和服务配置；XML 含代理密钥与会话签名密钥 |
 | `web.config.generated` | 将代理密钥带入 IIS 的模板；含秘密，权限收紧为仅 SYSTEM/管理员，复制到站点后应从安装目录删除 |
-| `logs` | 服务运行日志，LocalService 可写 |
+| `logs` | 服务运行日志，服务账号可写 |
 | `pam\__init__.py` / `pam\audit.py` | 最小运行依赖；完整管理工具和测试不复制到服务目录 |
 
-服务以 `NT AUTHORITY\LocalService` 运行，安装目录允许它读取运行代码，日志目录允许写入；普通会话账户不能修改服务代码、配置和秘密。不要将整个安装目录作为 IIS 网站根目录。不要把 XML、生成的代理配置、共享秘密或含凭据的诊断输出提交 Git。
+服务以专用虚拟账号 `NT SERVICE\PSMTencentCloudSTS` 运行，安装目录允许它读取运行代码，日志目录允许写入；普通会话账户不能修改服务代码、配置和秘密。不要将整个安装目录作为 IIS 网站根目录。不要把 XML、生成的代理配置、共享秘密或含凭据的诊断输出提交 Git。
 
 ```powershell
 Get-Service PSMTencentCloudSTS
@@ -331,7 +331,7 @@ python scripts/run_maintenance.py --jobs maintenance.json --settings C:\Protecte
 
 单节点默认进程内令牌。多节点准备 Redis 7+、TLS、ACL、单一可写主节点；各节点使用相同角色配置、namespace、会话签名密钥和代理身份格式。代理密钥可以按节点独立配置。STS 并发上限为每节点两个，并非集群全局限制。
 
-从 [共享秘密模板](../deployment/shared-secrets.example.json) 创建受保护 JSON，替换 Redis 地址/认证信息、namespace 和随机共享 `session_key`；使用 `rediss://`，必要时提供 CA 文件。共享会话密钥独立于代理密钥；不要输出或提交该文件。CA 文件须 LocalService 可读。
+从 [共享秘密模板](../deployment/shared-secrets.example.json) 创建受保护 JSON，替换 Redis 地址/认证信息、namespace 和随机共享 `session_key`；使用 `rediss://`，必要时提供 CA 文件。共享会话密钥独立于代理密钥；不要输出或提交该文件。CA 文件须服务账号可读。
 
 ```powershell
 .\scripts\Configure-SharedTokens.ps1 `
@@ -365,7 +365,7 @@ Redis 失败时拒绝请求（503），不回退本地令牌。异步副本切�
 |---|---|
 | 安装提示目录/服务存在 | 查看既有安装或失败残留；使用升级/恢复流程，先备份再处理 |
 | WinSW 摘要不匹配 | 停止安装，重新核对可信发行文件与摘要 |
-| 服务启动失败 | 配置离线校验；检查 Python/LocalService 权限、依赖、日志、CA 可读性和环回端口占用 |
+| 服务启动失败 | 配置离线校验；检查 Python/服务账号权限、依赖、日志、CA 可读性和环回端口占用 |
 | IIS 401/403 | 核对 Windows Authentication、匿名访问关闭、授权身份、证书和浏览器集成认证 |
 | IIS 500 / 后端始终 403 | 查 ARR/Rewrite、允许的 server variables、REMOTE_USER 管线可用性和代理密钥一致性；不要用客户端身份头绕过 |
 | 表单失效 / 429 | 表单单次且有效期 120 秒，容量有限；等待后从 PVWA 发起新连接，不重放原 POST |
