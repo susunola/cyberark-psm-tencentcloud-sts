@@ -24,15 +24,21 @@ Two checks go further than the gate above and run as their own CI jobs:
 ### What can and cannot be checked off Windows
 
 `tests/test_service_config.py` executes `scripts/Shared-ServiceConfig.ps1` through
-`pwsh` whenever it is on PATH - on Linux and macOS too, not only on Windows CI. If
-`pwsh` is missing the whole class is skipped and the only remaining PowerShell
-coverage is the parse step in CI, so install PowerShell locally rather than
-assuming Windows is required:
+`pwsh` whenever it is on PATH - on Linux and macOS too, not only on Windows CI.
+`tests/test_powershell_syntax.py` parses every `.ps1` file under `scripts/` with the
+real PowerShell parser, which reaches the statements only a Windows host can execute:
+a syntax error there would otherwise surface for the first time on a runner that
+nobody can reproduce locally. If `pwsh` is missing, both modules skip, so install
+PowerShell locally rather than assuming Windows is required:
 
 ```text
 brew install powershell            # macOS
-python -m unittest tests.test_service_config -v
+python -m unittest tests.test_service_config tests.test_powershell_syntax -v
 ```
+
+That parser is what makes the next convention load-bearing: a workflow step must
+invoke a file under `scripts/ci/` rather than inline PowerShell in YAML, and
+`tests/test_hardening.py` enforces that shape, because a parser can only see files.
 
 `Install-Bridge.ps1` is executed by the `windows-installer` CI job on a Windows
 Server 2025 runner: it installs the service, asserts the ACLs by reading them, and
@@ -48,6 +54,8 @@ service; `Uninstall-Bridge.ps1` needs the service. CI parses all of them and thi
 repository also pins their security-relevant statements by assertion in
 `tests/test_hardening.py`, so a property cannot be dropped silently - but that is
 text, not execution. Their runtime behaviour is an acceptance item, not a test.
+`scripts/ci/` holds the statements the `windows-installer` job runs, one file per
+step, so those are parsed even though only a Windows host can execute them.
 
 ### Run the Redis integration suite locally
 

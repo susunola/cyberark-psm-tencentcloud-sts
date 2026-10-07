@@ -17,6 +17,28 @@ from version import VERSION
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def powershell_steps(text):
+    """The line number and command of every step that runs under `shell: pwsh`."""
+    steps = []
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        match = re.match(r'^\s*run:\s*(.*)$', line)
+        if match is None:
+            continue
+        shell = ''
+        for previous in reversed(lines[:index]):
+            stripped = previous.strip()
+            starts_step = stripped.startswith('- ')
+            candidate = stripped[2:] if starts_step else stripped
+            if candidate.startswith('shell:'):
+                shell = candidate.partition(':')[2].strip()
+            if starts_step:
+                break
+        if shell == 'pwsh':
+            steps.append((index + 1, match.group(1).strip()))
+    return steps
+
+
 class HardeningTests(unittest.TestCase):
     def setUp(self):
         self.settings = {'profiles': {'readonly': {'role_arn': 'qcs::cam::uin/123:roleName/ReadOnly',
@@ -157,6 +179,24 @@ class HardeningTests(unittest.TestCase):
         self.assertNotIn("Remove-Item", script)
         self.assertIn("Files preserved for audit/rollback", script)
         self.assertIn("Remove the dedicated IIS site", script)
+
+    def test_ci_powershell_steps_invoke_a_script_instead_of_inlining_it(self):
+        # tests/test_powershell_syntax.py parses every file under scripts/, which is exactly
+        # what inline PowerShell in a workflow escapes: its syntax errors would surface for
+        # the first time on the runner that executes the step, and only there.
+        for name, path in (('ci.yml', ROOT / '.github/workflows/ci.yml'),
+                           ('ci-workflow.yml.template', ROOT / 'deployment/ci-workflow.yml.template')):
+            steps = powershell_steps(path.read_text(encoding='utf-8'))
+            self.assertTrue(steps, f'{name}: no pwsh steps were found, which would make this check vacuous')
+            for line, command in steps:
+                with self.subTest(workflow=name, line=line):
+                    self.assertRegex(command, r'^\./scripts/[\w./-]+\.ps1$')
+
+    def test_ci_template_is_the_same_workflow(self):
+        # README advertises the template as matching; keep it byte-identical so the two
+        # cannot drift into different gates.
+        self.assertEqual((ROOT / 'deployment/ci-workflow.yml.template').read_bytes(),
+                         (ROOT / '.github/workflows/ci.yml').read_bytes())
 
     def test_proxy_template_overwrites_headers(self):
         root = ElementTree.parse(ROOT / 'deployment/web.config.template').getroot()
