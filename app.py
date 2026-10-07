@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import threading
+import time
 import uuid
 from collections.abc import Callable, Mapping
 from typing import Any, NoReturn
@@ -178,6 +179,10 @@ def create_app(
             claimed = getattr(g, 'claimed_identity', None)
             if claimed:
                 fields['proxy_identity'] = claimed
+        # Integer milliseconds of the STS call, when one was made. Not a credential and not
+        # vendor text, and without it the per-login TLS handshake is invisible.
+        if getattr(g, 'sts_ms', None) is not None:
+            fields['sts_ms'] = g.sts_ms
         logger.info(audit_event(fields))
         return response
 
@@ -251,7 +256,13 @@ def create_app(
             session.pop('csrf', None)
             if not tokens.consume(csrf, request.headers['X-PSM-Authenticated-User']):
                 reject(TOKEN_REJECTED)
-            creds = sts(sid, key, profile['role_arn'], name, profile['duration_seconds'], profile['region'])
+            started = time.monotonic()
+            try:
+                creds = sts(sid, key, profile['role_arn'], name, profile['duration_seconds'], profile['region'])
+            finally:
+                # Timed even when the call raises: a failing STS is exactly when the
+                # operator needs to know whether it was fast, slow or unreachable.
+                g.sts_ms = int((time.monotonic() - started) * 1000)
             url = login_url(creds, profile['destination'])
         except (HTTPException, TokenStoreError):
             # A token-backend outage must keep its own 503/Retry-After contract.
@@ -270,6 +281,7 @@ def create_app(
             'profile': request.form['profile'],
             'proxy_identity': request.headers['X-PSM-Authenticated-User'],
             'role_session_name': name,
+            'sts_ms': g.sts_ms,
         }))
         # Callback URL contains temporary credentials. Never log response headers or Location.
         return redirect(url, code=303)

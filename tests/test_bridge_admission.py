@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 from urllib.parse import urlsplit
 
 from app import DEFAULT_ISSUANCE_SLOTS, MAX_ISSUANCE_SLOTS, create_app
+from federation import FederationError
 from runtime import THREADS
 from security import TokenStore
 
@@ -365,6 +366,50 @@ class AdmissionOrderTests(unittest.TestCase):
         self.assertNotIn('fake-broker-key', retry.headers['Location'])
         # The single-use token really was still available to the retry.
         self.assertFalse(store.consume(csrf, 'alice'))
+
+
+class IssuanceMetricTests(unittest.TestCase):
+    """The STS call is the slowest step of a login and the only one that leaves the host."""
+
+    def rows(self, sts):
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        audit = logging.getLogger('psm_tencent.audit')
+        audit.addHandler(handler)
+        previous = audit.level
+        audit.setLevel(logging.INFO)
+        try:
+            client = create_app(SETTINGS, proxy_key=KEY, session_key='s' * 32, sts=sts).test_client()
+            client.post('/connect', data=submitted_form(load_form(client)), headers=headers(), base_url='https://bridge.local')
+        finally:
+            audit.removeHandler(handler)
+            audit.setLevel(previous)
+        return [json.loads(line) for line in stream.getvalue().splitlines()]
+
+    def test_the_recorded_duration_is_the_measured_call(self):
+        def slow(*_args):
+            time.sleep(0.05)
+            return CREDENTIALS
+
+        rows = self.rows(slow)
+        issued = [row for row in rows if row.get('event') == 'role_session_issued'][-1]
+        self.assertGreaterEqual(issued['sts_ms'], 40)
+        self.assertLess(issued['sts_ms'], 30000)
+        result = [row for row in rows if row.get('event') == 'http_result'][-1]
+        self.assertEqual(result['status'], 303)
+        self.assertGreaterEqual(result['sts_ms'], 40)
+
+    def test_a_failed_issuance_records_the_duration_and_a_fixed_reason(self):
+        def failing(*_args):
+            time.sleep(0.05)
+            raise FederationError('STS request failed: ' + 'FAKE-SECRET-VENDOR-TEXT')
+
+        rows = self.rows(failing)
+        result = [row for row in rows if row.get('event') == 'http_result'][-1]
+        self.assertEqual(result['status'], 502)
+        self.assertEqual(result['reason'], 'issuance-failed')
+        self.assertGreaterEqual(result['sts_ms'], 40)
+        self.assertNotIn('FAKE-SECRET-VENDOR-TEXT', json.dumps(rows))
 
 
 if __name__ == '__main__':

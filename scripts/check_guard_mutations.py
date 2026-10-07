@@ -144,6 +144,12 @@ MUTATIONS: tuple[tuple[str, str, str, str], ...] = (
         "PUBLIC_ROUTES = frozenset({'livez'})",
         "PUBLIC_ROUTES = frozenset({'livez', 'readiness'})",
     ),
+    (
+        "bridge: the measured STS duration reaches the response event",
+        "app.py",
+        "        if getattr(g, 'sts_ms', None) is not None:",
+        "        if False:",
+    ),
 )
 
 
