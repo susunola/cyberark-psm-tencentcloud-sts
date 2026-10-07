@@ -17,6 +17,11 @@ from version import VERSION
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def workflow_sources():
+    """Every workflow file plus the template published for it."""
+    return sorted((ROOT / '.github/workflows').glob('*.yml')) + sorted((ROOT / 'deployment').glob('*-workflow.yml.template'))
+
+
 def powershell_steps(text):
     """The line number and command of every step that runs under `shell: pwsh`."""
     steps = []
@@ -184,19 +189,27 @@ class HardeningTests(unittest.TestCase):
         # tests/test_powershell_syntax.py parses every file under scripts/, which is exactly
         # what inline PowerShell in a workflow escapes: its syntax errors would surface for
         # the first time on the runner that executes the step, and only there.
-        for name, path in (('ci.yml', ROOT / '.github/workflows/ci.yml'),
-                           ('ci-workflow.yml.template', ROOT / 'deployment/ci-workflow.yml.template')):
+        for path in workflow_sources():
             steps = powershell_steps(path.read_text(encoding='utf-8'))
-            self.assertTrue(steps, f'{name}: no pwsh steps were found, which would make this check vacuous')
             for line, command in steps:
-                with self.subTest(workflow=name, line=line):
+                with self.subTest(workflow=path.name, line=line):
                     self.assertRegex(command, r'^\./scripts/[\w./-]+\.ps1$')
+        # The scan itself must be reaching the workflows, and the Windows job in
+        # particular, or this test would pass by finding nothing at all.
+        names = {path.name for path in workflow_sources()}
+        self.assertIn('ci.yml', names)
+        self.assertTrue(any(powershell_steps(path.read_text(encoding='utf-8')) for path in workflow_sources()))
 
-    def test_ci_template_is_the_same_workflow(self):
-        # README advertises the template as matching; keep it byte-identical so the two
-        # cannot drift into different gates.
-        self.assertEqual((ROOT / 'deployment/ci-workflow.yml.template').read_bytes(),
-                         (ROOT / '.github/workflows/ci.yml').read_bytes())
+    def test_every_workflow_template_matches_its_workflow(self):
+        # README advertises the templates as matching; keep them byte-identical so a
+        # deployment cannot follow a gate the repository does not run.
+        templates = sorted((ROOT / 'deployment').glob('*-workflow.yml.template'))
+        self.assertTrue(templates, 'no workflow templates were found')
+        for template in templates:
+            workflow = ROOT / '.github/workflows' / template.name.replace('-workflow.yml.template', '.yml')
+            with self.subTest(template=template.name):
+                self.assertTrue(workflow.is_file(), f'{template.name} has no {workflow.name}')
+                self.assertEqual(template.read_bytes(), workflow.read_bytes())
 
     def test_proxy_template_overwrites_headers(self):
         root = ElementTree.parse(ROOT / 'deployment/web.config.template').getroot()

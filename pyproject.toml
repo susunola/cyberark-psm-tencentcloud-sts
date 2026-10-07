@@ -27,6 +27,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Security",
     "Topic :: System :: Systems Administration",
 ]
@@ -140,8 +141,9 @@ source = ["app", "configuration", "federation", "runtime", "security", "version"
 omit = ["tests/*", "scripts/*"]
 
 [tool.coverage.report]
-# Enforced gate; raise only with measured headroom.
-fail_under = 95
+# Enforced gate, raised from 95 to 98 once every measured module reached 100%. The two
+# points of headroom are for a branch no runner can execute, such as platform-specific code.
+fail_under = 98
 show_missing = true
 skip_covered = false
 exclude_lines = [

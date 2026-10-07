@@ -4,7 +4,7 @@
 
 适用源码版本：0.5.2。本文从首次部署到日常操作给出完整流程。目标是通过 CyberArk PVWA 授权，在 PSM 浏览器中使用 Vault 保存的 CAM 密钥登录腾讯云国际站控制台；CVM 客户机连接使用已安装的原生 SSH/RDP 组件。
 
-本项目提供桥接服务及管理工具源码，不提供可直接导入的原生平台/CPM ZIP。自动化验证覆盖 Windows/Ubuntu、Python 3.11–3.13，以及真实 Redis 的共享令牌行为；目标 PSM 上的服务运行、腾讯云登录、录屏和审批仍须现场验收。不能把源码测试通过理解为全版本认证。[交付边界](DELIVERY.zh-CN.md)和[验收记录](ACCEPTANCE.zh-CN.md)列明了这些状态。
+本项目提供桥接服务及管理工具源码，不提供可直接导入的原生平台/CPM ZIP。自动化验证覆盖 Windows/Ubuntu、Python 3.11–3.14，以及真实 Redis 的共享令牌行为；目标 PSM 上的服务运行、腾讯云登录、录屏和审批仍须现场验收。不能把源码测试通过理解为全版本认证。[交付边界](DELIVERY.zh-CN.md)和[验收记录](ACCEPTANCE.zh-CN.md)列明了这些状态。
 
 ## 目录
 
@@ -38,7 +38,7 @@ PVWA 控制连接授权，原生 PSM 控制浏览器隔离、录屏和退出清�
 |---|---|
 | 测试 PAM 环境 | 可管理 PVWA 平台、Safe 和连接组件；可验证 PSM Web 登录与录屏 |
 | Windows PSM 主机 | 由管理员部署；先核对组织 PSM 加固基线是否允许新增服务和 IIS |
-| Python | 机器级安装，LocalService 可执行；CI 覆盖 3.11–3.13 |
+| Python | 机器级安装，LocalService 可执行；CI 覆盖 3.11–3.14 |
 | WinSW | 管理员从可信来源取得并审核；提供可信 SHA256，不随源码提供 |
 | IIS | Windows Authentication、URL Rewrite、ARR；独立 HTTPS 站点与受信任证书 |
 | 腾讯云 | 专用 CAM 子用户、API 密钥、可登录控制台的普通 CAM 角色 |

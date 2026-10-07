@@ -2,7 +2,7 @@
 
 [English](DEPLOYMENT.md)
 
-先在与生产版本一致的测试 PSM 部署。需要 LocalService 可读取的机器级 Python 3.11–3.13、经核验的 WinSW 二进制及 SHA256、IIS Windows Authentication、URL Rewrite、ARR。WinSW 不随本包分发。安装脚本和代理模板尚待真实 Windows 环境验收。
+先在与生产版本一致的测试 PSM 部署。需要 LocalService 可读取的机器级 Python 3.11–3.14、经核验的 WinSW 二进制及 SHA256、IIS Windows Authentication、URL Rewrite、ARR。WinSW 不随本包分发。安装脚本和代理模板尚待真实 Windows 环境验收。
 
 1. 在管理员控制的目录解压代码，填写 `settings.json`。每个 SecretId 只能绑定一个角色配置；云端 SecretKey 保存在 Vault。
 2. 执行 `python scripts/check_config.py settings.json`，校验配置，不调用云 API。

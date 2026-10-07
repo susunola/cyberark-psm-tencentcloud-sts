@@ -132,6 +132,12 @@ MUTATIONS: tuple[tuple[str, str, str, str], ...] = (
         "    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)",
         "    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)",
     ),
+    (
+        "lifecycle: prepare re-checks the binding instead of trusting the validator",
+        "pam/lifecycle.py",
+        "    if not old_sid or props.get('TencentRoleProfile') != profile:",
+        "    if False:",
+    ),
 )
 
 

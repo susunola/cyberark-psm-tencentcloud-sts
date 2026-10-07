@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-Use a staging PSM matching the target production version. Supply a machine-wide supported Python 3.11–3.13 installation readable by LocalService, a reviewed WinSW binary with its verified SHA256, IIS Windows Authentication, URL Rewrite and ARR. No WinSW executable is distributed here. Compare the XML/commands with the selected WinSW release before deployment.
+Use a staging PSM matching the target production version. Supply a machine-wide supported Python 3.11–3.14 installation readable by LocalService, a reviewed WinSW binary with its verified SHA256, IIS Windows Authentication, URL Rewrite and ARR. No WinSW executable is distributed here. Compare the XML/commands with the selected WinSW release before deployment.
 
 Official references: [WinSW](https://github.com/winsw/winsw), [IIS reverse proxy](https://learn.microsoft.com/en-us/iis/extensions/url-rewrite-module/reverse-proxy-with-url-rewrite-v2-and-application-request-routing), [URL Rewrite configuration](https://learn.microsoft.com/en-us/iis/extensions/url-rewrite-module/url-rewrite-module-configuration-reference).
 

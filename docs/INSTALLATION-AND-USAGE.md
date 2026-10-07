@@ -4,7 +4,7 @@
 
 Applies to source version 0.5.2. This guide takes an administrator from first installation to console access, guest access, maintenance and recovery. The console flow uses Vault-managed CAM keys in a CyberArk PSM Web session. CVM guest access uses the installed native SSH/RDP components.
 
-The deliverable is bridge and administrative source code, not an importable native platform/CPM ZIP. Automated checks cover Windows/Ubuntu, Python 3.11–3.13 and actual Redis token sharing. Service operation on a target PSM, live Tencent Cloud login, recording and approval still require environment acceptance. Passing source tests does not certify every PAM version. See the [delivery ledger](DELIVERY.md) and [acceptance record](ACCEPTANCE.md).
+The deliverable is bridge and administrative source code, not an importable native platform/CPM ZIP. Automated checks cover Windows/Ubuntu, Python 3.11–3.14 and actual Redis token sharing. Service operation on a target PSM, live Tencent Cloud login, recording and approval still require environment acceptance. Passing source tests does not certify every PAM version. See the [delivery ledger](DELIVERY.md) and [acceptance record](ACCEPTANCE.md).
 
 ## Contents
 
@@ -36,7 +36,7 @@ PVWA governs authorization. Native PSM governs browser isolation, recording and 
 |---|---|
 | Test PAM environment | Permission to manage platforms, Safes and connection components; ability to test PSM Web and playback |
 | Windows PSM host | Administrator access; organizational approval for the additional service/IIS under the PSM hardening baseline |
-| Python | Machine-wide installation executable by LocalService; CI covers 3.11–3.13 |
+| Python | Machine-wide installation executable by LocalService; CI covers 3.11–3.14 |
 | WinSW | Separately obtained, reviewed binary and a SHA256 verified against a trusted source |
 | IIS | Windows Authentication, URL Rewrite, ARR, dedicated HTTPS site and trusted certificate |
 | Tencent Cloud | Dedicated CAM sub-user/API key and ordinary CAM role eligible for console login |

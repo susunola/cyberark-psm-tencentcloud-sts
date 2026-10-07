@@ -132,7 +132,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-24.04, windows-2025]
-        python: ['3.11', '3.12', '3.13']
+        python: ['3.11', '3.12', '3.13', '3.14']
     timeout-minutes: 15
     runs-on: ${{ matrix.os }}
     steps:
@@ -152,3 +152,24 @@ jobs:
         with:
           name: source-${{ matrix.os }}-${{ matrix.python }}
           path: dist/
+  # One attested artifact set per run, from the leg with the stable name rather than from
+  # all eight. The build is reproducible (the suite asserts it), so this copy is the same
+  # source as any other leg's. Elevated permissions stay in this job alone.
+  provenance:
+    name: Attest the release artifacts
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: source-ubuntu-24.04-3.13
+          path: dist
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*

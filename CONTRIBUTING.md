@@ -21,6 +21,10 @@ Two checks go further than the gate above and run as their own CI jobs:
 - `python scripts/check_guard_mutations.py` disables one security guard at a time and requires the suite to fail, so a control that no test protects is reported (about a minute). It refuses to run when a target file differs from HEAD, so it cannot hide uncommitted work.
 - `python -m pip_audit -r requirements.lock.txt` fails when a published advisory covers a pinned dependency. A new advisory is a real finding rather than a flake, so it is expected to break the build until the pin moves.
 
+The gate scripts are themselves under test in `tests/test_gate_tooling.py`: each one is fed a deliberately broken input and required to refuse it, because a check that quietly stops detecting a problem leaves the build green and is worse than no check at all.
+
+`.github/workflows/security.yml` carries the analysis that does not belong in the per-push gate: CodeQL with the `security-and-quality` query pack, on pushes to `main`, on pull requests and weekly, because a new query pack finds new problems in code that has not changed. The release artifacts are attested from the same run, by a job that holds the elevated permissions alone. `deployment/` publishes a byte-identical template for each workflow, which `tests/test_hardening.py` asserts, so a deployment can follow the gate the repository actually runs.
+
 ### What can and cannot be checked off Windows
 
 `tests/test_service_config.py` executes `scripts/Shared-ServiceConfig.ps1` through
@@ -72,7 +76,7 @@ docker rm -f psm-redis
 
 When you add a security guard, add it to the mutation table in `scripts/check_guard_mutations.py` and to the property or invariant suite where one applies. When you change the dependency lock, regenerate the hash file (`python scripts/pin_lock_hashes.py`) and re-run the audit.
 
-`requirements-dev.txt` is required to run the suite: the property and invariant suites need hypothesis and skip cleanly without it. `mypy` takes its target list from `pyproject.toml`, and `coverage report` enforces the coverage threshold declared there (95%; currently measured at 99%). Raise the gate only together with real tests. `python -m unittest discover -s tests -v` is the single runner used locally and by CI, including the Windows/Ubuntu and Python 3.11-3.13 matrix.
+`requirements-dev.txt` is required to run the suite: the property and invariant suites need hypothesis and skip cleanly without it. `mypy` takes its target list from `pyproject.toml`, and `coverage report` enforces the coverage threshold declared there (98%; currently measured at 100%). Raise the gate only together with real tests. `python -m unittest discover -s tests -v` is the single runner used locally and by CI, including the Windows/Ubuntu and Python 3.11-3.14 matrix.
 
 Lint is enforced but formatting is not: the test and script suites keep intentional compact one-liners, so `ruff format` must not be run over them.
 
@@ -82,7 +86,7 @@ Add meaningful tests for authorization boundaries, signing, deployment changes a
 
 ## Code conventions
 
-- Target Python 3.11+ syntax; `pyproject.toml` declares 3.11 as the floor and CI tests 3.11-3.13.
+- Target Python 3.11+ syntax; `pyproject.toml` declares 3.11 as the floor and CI tests 3.11-3.14.
 - Add type annotations to new functions. Everything outside `tests/` is type-checked, including `scripts/`; keep it free of `Any` leaks and blind re-`raise`s.
 - Broad `except Exception` is only acceptable at third-party boundaries (cloud SDK, `requests`, Redis, WSGI startup) where the whole point is to stop vendor text or credentials from reaching logs. Annotate those with `# noqa: BLE001` and a one-line reason, and re-raise a sanitized error with `from None`.
 - Never log, return or embed credentials, temporary tokens, login URLs or raw API error text. Sanitize at the boundary and correlate with the request ID instead.

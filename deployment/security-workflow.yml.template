@@ -1,0 +1,32 @@
+name: Security analysis
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # A new query pack finds new problems in unchanged code, so this also runs weekly.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      # Required to upload the analysis; the other steps need nothing beyond checkout.
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # security-and-quality, not the default set: the extra queries are advisory and a
+      # single-process loopback proxy has no data-flow the default queries can see.
+      - uses: github/codeql-action/init@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3.38.2
+        with:
+          languages: python
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3.38.2
+        with:
+          category: /language:python

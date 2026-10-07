@@ -62,7 +62,7 @@ Prefix commands with `python scripts/pamctl.py`. Successful tickets contain iden
 
 ## Validation and remaining acceptance
 
-Offline tests cover write guards, HTTPS/no-redirect behavior, request shapes, target ownership, staged key retention, uncertain writes, scope changes, role verification failures, rollback and guest planning. CI exercises Python 3.11–3.13 on Windows/Ubuntu. SDK and REST calls are mocked in these tests; no live Tencent/PVWA mutations have been performed by this project validation.
+Offline tests cover write guards, HTTPS/no-redirect behavior, request shapes, target ownership, staged key retention, uncertain writes, scope changes, role verification failures, rollback and guest planning. CI exercises Python 3.11–3.14 on Windows/Ubuntu. SDK and REST calls are mocked in these tests; no live Tencent/PVWA mutations have been performed by this project validation.
 
 Before production: test the actual PVWA endpoint/permissions and custom properties, install the chosen PSM connection framework, verify caller/role policy, and record SSH/RDP/console/approval/recording/rotation/rollback results. SDK-independent interfaces broaden portability; they do not establish compatibility with all CyberArk releases. A directly importable native platform/CPM package still needs target-version packaging and validation.
 
