@@ -114,6 +114,18 @@ MUTATIONS: tuple[tuple[str, str, str, str], ...] = (
         "    return 1 <= identity_capacity <= capacity",
         "    return True",
     ),
+    (
+        "cloud: the CAM sub-user bound is enforced",
+        "pam/cloud.py",
+        "        if not isinstance(users, list) or len(users) > self.max_users:",
+        "        if not isinstance(users, list):",
+    ),
+    (
+        "bridge: a refusal records its reason for triage",
+        "app.py",
+        "        if response.status_code >= 400:",
+        "        if False:",
+    ),
 )
 
 
