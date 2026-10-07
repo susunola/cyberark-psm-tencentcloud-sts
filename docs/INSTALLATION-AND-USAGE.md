@@ -138,6 +138,8 @@ Expect `Running`. On installation failure the script attempts to remove a regist
 | Unauthenticated request with forged proxy headers | Still 401/403 |
 | Direct local backend request without trusted headers | 403 |
 | Authorized HTTPS `/healthz` | 200 with `status: ok` |
+| Authorized HTTPS `/readyz` | 200 with `status: ok`; `/healthz` answers identically |
+| Anonymous loopback `/livez` | 200 with `status: ok`, no version and no backend state |
 | Authorized HTTPS `/` | Form loads over browser-side HTTPS |
 
 Health does not establish cloud login. Do not expose the proxy key to users or enable Flask debug/request logging to troubleshoot.

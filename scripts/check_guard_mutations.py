@@ -138,6 +138,12 @@ MUTATIONS: tuple[tuple[str, str, str, str], ...] = (
         "    if not old_sid or props.get('TencentRoleProfile') != profile:",
         "    if False:",
     ),
+    (
+        "bridge: only liveness is reachable without the proxy key",
+        "app.py",
+        "PUBLIC_ROUTES = frozenset({'livez'})",
+        "PUBLIC_ROUTES = frozenset({'livez', 'readiness'})",
+    ),
 )
 
 

@@ -58,6 +58,11 @@ BINDING_REJECTED = 'binding-rejected'
 LABEL_REJECTED = 'label-rejected'
 ADMISSION_BUSY = 'admission-busy'
 CAPACITY_EXHAUSTED = 'token-capacity-exhausted'
+# The one route a supervisor without a proxy key may call. It answers liveness and
+# nothing else: no version, no dependency state, no identity. Every other endpoint,
+# including an unknown one, still needs the key, and tests/test_hardening.py asserts
+# that this set is exactly what is reachable without it.
+PUBLIC_ROUTES = frozenset({'livez'})
 BACKEND_UNAVAILABLE = 'token-backend-unavailable'
 UNSPECIFIED_REASON = 'unspecified'
 ISSUANCE_FAILED = 'issuance-failed'
@@ -131,6 +136,8 @@ def create_app(
         # Never use ProxyFix/X-Forwarded-For to decide whether the peer is local.
         if request.remote_addr not in ('127.0.0.1', '::1'):
             reject(PROXY_PEER_REJECTED)
+        if request.endpoint in PUBLIC_ROUTES:
+            return None
         supplied = request.headers.get('X-PSM-Bridge-Key', '')
         if not hmac.compare_digest(supplied.encode(), proxy_key.encode()):
             reject(PROXY_KEY_REJECTED)
@@ -174,8 +181,20 @@ def create_app(
         logger.info(audit_event(fields))
         return response
 
+    @app.get('/livez')
+    def livez() -> dict[str, str]:
+        # Deliberately says nothing but that the process answers. The proxy key and the
+        # identity header are not checked here, so this must never report dependency
+        # state: a probe that could reach Redis would also be a probe that reveals it.
+        return {'status': 'ok'}
+
+    # /healthz keeps its meaning for existing monitoring; /readyz is the name that says
+    # what it does. Both check the token backend, because a bridge that cannot issue a
+    # token cannot serve a connection, and neither checks the STS endpoint: a probe
+    # interval would spend CAM's request budget for an answer the first login already gives.
+    @app.get('/readyz')
     @app.get('/healthz')
-    def health() -> tuple[dict[str, str], int] | dict[str, str]:
+    def readiness() -> tuple[dict[str, str], int] | dict[str, str]:
         try:
             tokens.check()
         except TokenStoreError:

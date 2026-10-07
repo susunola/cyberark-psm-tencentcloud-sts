@@ -142,6 +142,8 @@ Get-Service PSMTencentCloudSTS
 | 未认证伪造两项代理头 | 仍然 401/403 |
 | 无可信头直连 `127.0.0.1:8765/` | 403 |
 | 授权身份经 HTTPS 访问 `/healthz` | 200，`status` 为 `ok` |
+| 授权身份经 HTTPS 访问 `/readyz` | 200，`status` 为 `ok`；`/healthz` 表现相同 |
+| 本机匿名访问 `/livez` | 200，`status` 为 `ok`，不含版本与后端状态 |
 | 授权身份经 HTTPS 访问 `/` | 表单加载，浏览器侧始终为 HTTPS |
 
 健康检查不证明腾讯云登录成功。代理密钥不提供给用户，也不通过命令行例子打印出来。不要为排错启用 Flask debug 或记录完整请求。

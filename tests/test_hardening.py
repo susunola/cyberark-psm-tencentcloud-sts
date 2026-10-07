@@ -12,6 +12,7 @@ from xml.etree import ElementTree
 from app import create_app, normalize_audit_label
 from configuration import validate_settings
 from federation import FederationError, login_url, validate_destination
+from security import TokenStoreError
 from version import VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,6 +92,47 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(self.client.get('/healthz').status_code, 403)
         r = self.client.get('/healthz', headers=self.headers)
         self.assertEqual(r.json['status'], 'ok')
+
+    def test_only_liveness_is_reachable_without_the_proxy_key(self):
+        # Enumerated from the routing table rather than from a written-down list, so a route
+        # that becomes public by accident fails here instead of being noticed in production.
+        for rule in self.app.url_map.iter_rules():
+            if 'GET' not in rule.methods or rule.endpoint in ('static', 'livez'):
+                continue
+            with self.subTest(route=rule.rule):
+                response = self.client.get(rule.rule, base_url='https://bridge.local')
+                self.assertEqual(response.status_code, 403, f'{rule.rule} answered without the proxy key')
+
+    def test_liveness_reports_nothing_but_liveness(self):
+        response = self.client.get('/livez', base_url='https://bridge.local')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {'status': 'ok'})
+        self.assertNotIn(VERSION, response.text)
+
+    def test_liveness_still_requires_a_local_peer(self):
+        response = self.client.get('/livez', base_url='https://bridge.local', environ_base={'REMOTE_ADDR': '10.0.0.5'})
+        self.assertEqual(response.status_code, 403)
+
+    def test_readiness_needs_the_key_and_answers_for_the_backend(self):
+        self.assertEqual(self.client.get('/readyz', base_url='https://bridge.local').status_code, 403)
+        for route in ('/readyz', '/healthz'):
+            with self.subTest(route=route):
+                response = self.client.get(route, headers=self.headers, base_url='https://bridge.local')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.get_json(), {'status': 'ok', 'version': VERSION})
+
+    def test_readiness_reports_an_unavailable_backend(self):
+        class Unavailable:
+            def check(self):
+                raise TokenStoreError('backend unavailable')
+
+        app = create_app(self.settings, proxy_key='p'*32, session_key='s'*32, token_store=Unavailable())
+        for route in ('/readyz', '/healthz', '/livez'):
+            with self.subTest(route=route):
+                response = app.test_client().get(route, headers=self.headers, base_url='https://bridge.local')
+                self.assertEqual(response.status_code, 503 if route != '/livez' else 200)
+                if route != '/livez':
+                    self.assertEqual(response.get_json()['status'], 'unavailable')
 
     def test_security_headers_and_cookie(self):
         r = self.client.get('/', headers=self.headers, base_url='https://bridge.local')
