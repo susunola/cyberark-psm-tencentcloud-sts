@@ -69,6 +69,14 @@ class VaultConstructionTests(unittest.TestCase):
                 Vault(url, TOKEN)
             self.assertEqual(str(error.exception), "Use an explicit HTTPS PVWA API base URL")
 
+    def test_a_trailing_query_or_fragment_delimiter_is_rejected(self):
+        # An empty query/fragment parses as falsy but the raw delimiter would
+        # survive into self.url and truncate every subsequent route.
+        for suffix in ("#", "?", "#fragment", "?limit=1"):
+            with self.subTest(suffix=suffix), self.assertRaises(ValueError):
+                Vault(API_URL + suffix, TOKEN)
+        self.assertEqual(Vault(API_URL + "/", TOKEN).url, API_URL)
+
     def test_tls_verification_and_token_are_mandatory(self):
         with self.assertRaises(ValueError) as error:
             Vault(API_URL, TOKEN, ca=False)
@@ -88,6 +96,20 @@ class VaultConstructionTests(unittest.TestCase):
 
 
 class VaultRequestTests(VaultTestCase):
+    def test_dot_segments_are_rejected_before_the_client_can_normalise_them(self):
+        # requests collapses '/../' client-side, which would escape the API prefix;
+        # no internal caller builds such a route, so refuse it outright.
+        vault, transport = self.transport_vault()
+        transport.request.return_value = self.response(json_value={"ok": True})
+        for path in ("/Platforms/..", "/../Secret", "/Accounts/%2e%2e/x", "/Accounts/./x"):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                vault.request("GET", path)
+        transport.request.assert_not_called()
+        for path in ("/Accounts/1_2", "/Accounts?limit=1&offset=0", "/Recordings/x/Play"):
+            with self.subTest(path=path):
+                vault.request("GET", path)
+        self.assertEqual(transport.request.call_count, 3)
+
     def test_successful_request_returns_json_and_pins_transport_arguments(self):
         vault, transport = self.transport_vault()
         transport.request.return_value = self.response(200, b'{"id": "1_2"}', {"id": "1_2"})

@@ -155,10 +155,16 @@ class HardeningTests(unittest.TestCase):
                 # The public source archive must carry the local quality gate too.
                 for required in ('psm-tencentcloud-sts/pyproject.toml',
                                  'psm-tencentcloud-sts/requirements-dev.txt',
+                                 'psm-tencentcloud-sts/requirements.lock.hashes.txt',
                                  'psm-tencentcloud-sts/.pre-commit-config.yaml'):
                     self.assertIn(required, names)
                 self.assertFalse(any(n.endswith('/settings.json') or '.git/' in n or '__pycache__' in n for n in names))
-            locked = {line.split('==')[0].lower(): line.split('==')[1] for line in (ROOT / 'requirements.lock.txt').read_text().splitlines() if '==' in line}
+            locked = {}
+            for raw in (ROOT / 'requirements.lock.txt').read_text().splitlines():
+                entry = raw.split('\\')[0].split('--hash')[0].strip()
+                if '==' in entry:
+                    name, _, pinned = entry.partition('==')
+                    locked[name.lower()] = pinned
             self.assertEqual({c['name'].lower(): c['version'] for c in inventory['components']}, locked)
             for line in (Path(first) / 'SHA256SUMS').read_text().splitlines():
                 digest, name = line.split('  ')

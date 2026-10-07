@@ -17,7 +17,7 @@
 脚本创建 venv、安装锁定依赖、生成独立随机代理/会话密钥并存入受 ACL 保护的服务 XML，以 LocalService 安装并启动服务。失败保留诊断文件。不要启用捕获秘密变量的调试或脚本跟踪。
 
 4. 创建独立的 IIS HTTPS 站点与物理目录，使用可信证书；启用 Windows 认证、禁用匿名访问、仅授权实际 PSM 会话身份。
-5. 启用 ARR 代理，允许 Rewrite 服务变量 `HTTP_X_PSM_BRIDGE_KEY` 和 `HTTP_X_PSM_AUTHENTICATED_USER`。将安装目录的 `web.config.generated` 复制到专用站点为 `web.config`，仅授权管理员和该应用池身份读取。服务 XML 和配置不能放入站点目录。
+5. 启用 ARR 代理，允许 Rewrite 服务变量 `HTTP_X_PSM_BRIDGE_KEY` 和 `HTTP_X_PSM_AUTHENTICATED_USER`。将安装目录的 `web.config.generated` 复制到专用站点为 `web.config`。安装器已把该文件权限收紧为仅 SYSTEM 与管理员可读，复制完成后请从安装目录删除它；站点副本仅授权管理员和该应用池身份读取。服务 XML 和配置不能放入站点目录。
 6. 验证实际 IIS 管线在重写阶段能取得 `{REMOTE_USER}`。取不到应拒绝访问，不能信任浏览器提交的身份头。这是必须现场验证的项目。
 7. 关闭请求正文、Cookie 和响应 Location 跟踪，限制访问及请求速率，确保 ARR 不改写云端重定向地址。
 8. 认证后的 `/healthz` 应返回 `ok`；匿名请求应由 IIS 返回 401/403；不带私密代理密钥的后端请求应返回 403。伪造身份头不能通过。

@@ -1,4 +1,10 @@
-"""Production HTTP server configuration, shared with socket-level integration tests."""
+"""Production HTTP server configuration, shared with socket-level integration tests.
+
+Requests rejected by the server itself (oversized body or headers) are answered by
+waitress before WSGI, so the application's security headers and request id do not
+apply to them. The bodies are static and carry no request data; add proxy-level
+error handling if that surface needs the same headers. See SECURITY.md.
+"""
 from __future__ import annotations
 
 from typing import Any

@@ -109,7 +109,7 @@ The installer verifies WinSW, creates a venv, installs locked dependencies, copi
 | `venv\Scripts\python.exe` | Dedicated service interpreter |
 | `settings.json` | Role/SecretId allowlist; no CAM SecretKey |
 | `PSMTencentCloudSTS.exe` / `.xml` | WinSW and service configuration; XML contains proxy/session secrets |
-| `web.config.generated` | IIS template containing the private proxy key |
+| `web.config.generated` | IIS template containing the private proxy key; ACL-restricted to SYSTEM/administrators, delete it from the installation directory after copying |
 | `logs` | LocalService-writable runtime logs |
 | `pam\__init__.py`, `pam\audit.py` | Minimal runtime dependencies; full scripts/tests are not installed |
 
@@ -128,7 +128,7 @@ Expect `Running`. On installation failure the script attempts to remove a regist
 2. Install/enable approved Windows Authentication, URL Rewrite and ARR, including proxy forwarding. Avoid changing unrelated sites.
 3. Bind a trusted certificate/internal FQDN resolvable and trusted by the PSM browser.
 4. Disable anonymous access; enable Windows Authentication and restrict authorized PSM session identities. Confirm the actual integrated-authentication identity in your environment.
-5. Copy the generated `web.config.generated` to that site's `web.config` under restricted access. Following the [rewrite template](../deployment/web.config.template), permit `HTTP_X_PSM_BRIDGE_KEY` and `HTTP_X_PSM_AUTHENTICATED_USER` at the appropriate IIS configuration scope.
+5. Copy the generated `web.config.generated` (readable only by SYSTEM and administrators) to that site's `web.config` under restricted access, then delete it from the installation directory. Following the [rewrite template](../deployment/web.config.template), permit `HTTP_X_PSM_BRIDGE_KEY` and `HTTP_X_PSM_AUTHENTICATED_USER` at the appropriate IIS configuration scope.
 6. Overwrite browser-supplied headers with the private proxy key and authenticated `{REMOTE_USER}`; forward only to `http://127.0.0.1:8765`. Verify `REMOTE_USER` is populated at the relevant rewrite stage in your actual IIS pipeline. Missing identity must fail closed, without trusting client headers.
 7. Disable request-body, Cookie, response Location and full callback-URL tracing/caching. Preserve external Tencent Cloud redirect destinations.
 

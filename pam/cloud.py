@@ -7,6 +7,9 @@ from typing import Any
 from federation import FederationError, validate_region
 
 KEY_STATUSES = ('Active', 'Inactive')
+# Vendor-controlled strings are echoed into operator output; bound and sanitise them.
+MAX_VENDOR_TEXT = 1024
+VENDOR_HOST_PATTERN = re.compile(r'[0-9A-Fa-f:.]{1,64}')
 KEY_ID_PATTERN = re.compile(r'[A-Za-z0-9_-]{1,256}')
 MAX_CAM_KEYS = 10
 
@@ -15,6 +18,36 @@ def uin(value: object) -> int:
     if not re.fullmatch(r'[0-9]{1,20}', str(value)) or int(str(value)) <= 0:
         raise ValueError('Explicit positive target UIN required')
     return int(str(value))
+
+
+def display_text(value: object) -> str:
+    """Return a bounded, control-character-free vendor string for operator output."""
+    if not isinstance(value, str):
+        return ''
+    if len(value) > MAX_VENDOR_TEXT or any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise FederationError('Unexpected vendor text in inventory')
+    return value
+
+
+def display_flag(value: object) -> int:
+    """Return the CAM console-login flag; the vendor field is numeric, not text."""
+    if type(value) is not int or value not in (0, 1):
+        raise FederationError('Unexpected vendor flag in inventory')
+    return value
+
+
+def display_hosts(value: object) -> list[str]:
+    """Return a bounded list of address literals from a cloud inventory record."""
+    if value is None:
+        return []
+    if not isinstance(value, list) or len(value) > MAX_VENDOR_TEXT:
+        raise FederationError('Unexpected vendor address list in inventory')
+    hosts: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not re.fullmatch(VENDOR_HOST_PATTERN, item):
+            raise FederationError('Unexpected vendor address in inventory')
+        hosts.append(item)
+    return hosts
 
 
 class Cloud:
@@ -144,8 +177,8 @@ class Cloud:
         users = self.users()
         inventory: dict[str, list[dict[str, Any]]] = {'users': [], 'instances': []}
         for user in users:
-            inventory['users'].append({'uin': str(user.Uin), 'name': user.Name,
-                'console_login': user.ConsoleLogin, 'keys': self.keys(user.Uin)})
+            inventory['users'].append({'uin': str(user.Uin), 'name': display_text(user.Name),
+                'console_login': display_flag(user.ConsoleLogin), 'keys': self.keys(user.Uin)})
         for region in regions:
             client = cvm_client.CvmClient(self.credential, region,
                 ClientProfile(httpProfile=HttpProfile(endpoint='cvm.intl.tencentcloudapi.com', reqTimeout=15)))
@@ -174,10 +207,11 @@ class Cloud:
                     if not isinstance(identifier, str) or not re.fullmatch(r'ins-[A-Za-z0-9]+', identifier) or identifier in seen:
                         raise FederationError('Invalid or repeated inventory instance')
                     seen.add(identifier)
-                    inventory['instances'].append({'id': instance.InstanceId, 'region': region,
-                        'name': instance.InstanceName, 'os': instance.OsName,
-                        'private_ips': instance.PrivateIpAddresses or [],
-                        'public_ips': instance.PublicIpAddresses or [], 'state': instance.InstanceState})
+                    inventory['instances'].append({'id': identifier, 'region': region,
+                        'name': display_text(instance.InstanceName), 'os': display_text(instance.OsName),
+                        'private_ips': display_hosts(instance.PrivateIpAddresses),
+                        'public_ips': display_hosts(instance.PublicIpAddresses),
+                        'state': display_text(instance.InstanceState)})
                 offset += len(batch)
                 if offset == total:
                     break

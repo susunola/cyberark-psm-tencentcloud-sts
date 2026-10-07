@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Bound pending form tokens per identity (evicting that identity's oldest), so one proxy-authenticated caller can no longer exhaust the shared pool and deny connections to everyone else. The global capacity still refuses rather than evicting other callers' tokens.
+- Reserve the issuance slot before consuming the single-use token, and burn the session copy only at that point: a 503 "busy" no longer forces a form reload and re-entry of the SecretKey.
+- Reject a comma-joined or space-padded `X-PSM-Authenticated-User`. The HTTP server joins repeated headers, so an appended value previously entered the audit identity and the token binding key together.
+- Reject `?`/`#` in the PVWA API base URL and `.`/`..` route segments. An empty query or fragment parses as falsy but the raw delimiter survived into every later URL and silently retargeted the request to the API root.
+- Bound and control-character-check the vendor strings and address lists copied into cloud inventory output.
+- Re-protect the generated IIS proxy configuration so only SYSTEM and administrators can read it; the install directory grants LocalService read for the service XML, which previously made the proxy key readable to any LocalService process.
+- Ship a hash-pinned `requirements.lock.hashes.txt` and install with `--require-hashes` on the deploy host, so a substituted dependency cannot execute with administrator rights. `scripts/pin_lock_hashes.py` regenerates it and can verify it is in sync.
+- Document that requests rejected by the HTTP server itself (413/431) never reach the application and therefore carry none of its security headers.
 - Refuse to retire a key unless the target holds exactly the rotation pair, so a second concurrent preparation can no longer leave an unverified key live under a "cutover complete" report.
 - Validate and de-duplicate the CAM access-key inventory before any retirement decision; a malformed, repeated or unexpected record now fails loudly instead of collapsing into a wrong key state.
 - Require the full Vault binding, account scope and bridge allowlist before `restore-old` reactivates a key, and read the state back afterwards. A hand-written ticket can no longer revive an unrelated or incident-disabled key.

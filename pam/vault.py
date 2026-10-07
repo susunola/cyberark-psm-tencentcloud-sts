@@ -8,6 +8,18 @@ from urllib.parse import quote, urlsplit
 import requests
 
 
+def _has_dot_segment(path: str) -> bool:
+    """Detect '.'/'..' segments (including percent-encoded) before the client normalises them.
+
+    No internal caller builds such a route; rejecting them keeps a future caller from
+    escaping the API prefix if a value ever reaches a path unencoded.
+    """
+    return any(
+        segment.lower().replace('%2e', '.') in ('.', '..')
+        for segment in path.split('?', 1)[0].split('/')
+    )
+
+
 class VaultError(Exception):
     def __init__(self, message: str, status: int | None = None) -> None:
         super().__init__(message)
@@ -22,7 +34,17 @@ class Vault:
         ca: bool | str = True,
         session: requests.Session | None = None,
     ) -> None:
-        if not isinstance(api_url, str) or not api_url or len(api_url) > 2048 or any(ord(c) < 33 for c in api_url) or '\\' in api_url:
+        if (
+            not isinstance(api_url, str)
+            or not api_url
+            or len(api_url) > 2048
+            or any(ord(c) < 33 for c in api_url)
+            or '\\' in api_url
+            # An empty query/fragment parses as falsy, but the raw delimiter would
+            # survive into self.url and truncate every later route.
+            or '?' in api_url
+            or '#' in api_url
+        ):
             raise ValueError('Use an explicit HTTPS PVWA API base URL')
         try:
             parsed = urlsplit(api_url)
@@ -65,6 +87,7 @@ class Vault:
             or '#' in path
             or '\\' in path
             or any(ord(c) < 33 for c in path)
+            or _has_dot_segment(path)
         ):
             raise ValueError('Invalid PVWA request route')
         try:

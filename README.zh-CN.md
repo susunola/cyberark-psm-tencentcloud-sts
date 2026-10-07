@@ -119,6 +119,7 @@ flowchart TB
 - `cam-assume-policy.example.json`：调用子用户的 AssumeRole 权限示例，替换账号和角色后使用。
 - `WebFormFields.template.txt`：PSM Web 凭据注入映射，必须与安装版本核对。
 - `requirements.in`：依赖范围；部署使用本包 `requirements.lock.txt` 的实际测试版本。
+- `requirements.lock.hashes.txt`：供部署主机 `pip --require-hashes` 使用的哈希锁定文件，用 `scripts/pin_lock_hashes.py` 重新生成。
 - `requirements-dev.txt`：质量门禁使用的固定版本 lint、类型检查与覆盖率工具。
 - `pyproject.toml`：打包元数据，以及 ruff、mypy、覆盖率的配置与门禁。
 - `.pre-commit-config.yaml`：可选的 git 钩子，固定到上游 tag，与 CI 质量任务一致。

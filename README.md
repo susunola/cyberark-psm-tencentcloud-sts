@@ -121,6 +121,7 @@ Version 0.3.0 adds `scripts/pamctl.py`: CAM/CVM discovery, guest onboarding prop
 | `cam-assume-policy.example.json` | Caller sub-user permission example; replace the account and role |
 | `WebFormFields.template.txt` | Credential injection mapping; verify against the installed PSM version |
 | `requirements.in` / `requirements.lock.txt` | Runtime dependency ranges and tested versions |
+| `requirements.lock.hashes.txt` | Hash-pinned lock for `pip --require-hashes` on the deploy host; regenerate with `scripts/pin_lock_hashes.py` |
 | `requirements-dev.txt` | Pinned lint, type-check and coverage tooling used by the quality gate |
 | `pyproject.toml` | Packaging metadata plus the ruff, mypy and coverage configuration and their gate |
 | `.pre-commit-config.yaml` | Optional git hooks pinned to upstream tags; mirrors the CI quality job |

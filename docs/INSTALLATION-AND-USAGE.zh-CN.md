@@ -111,7 +111,7 @@ Set-Location C:\Admin\psm-tencentcloud-sts
 | `venv\Scripts\python.exe` | 服务使用的独立 Python 环境 |
 | `settings.json` | 角色/SecretId 白名单，不含 CAM SecretKey |
 | `PSMTencentCloudSTS.exe` / `.xml` | WinSW 和服务配置；XML 含代理密钥与会话签名密钥 |
-| `web.config.generated` | 将代理密钥带入 IIS 的模板；含秘密，按配置文件保护 |
+| `web.config.generated` | 将代理密钥带入 IIS 的模板；含秘密，权限收紧为仅 SYSTEM/管理员，复制到站点后应从安装目录删除 |
 | `logs` | 服务运行日志，LocalService 可写 |
 | `pam\__init__.py` / `pam\audit.py` | 最小运行依赖；完整管理工具和测试不复制到服务目录 |
 

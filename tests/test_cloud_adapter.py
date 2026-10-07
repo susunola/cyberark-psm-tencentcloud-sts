@@ -390,6 +390,31 @@ class DiscoverTests(unittest.TestCase):
         self.assertEqual(instance["private_ips"], [])
         self.assertEqual(instance["public_ips"], [])
 
+    def test_vendor_text_cannot_smuggle_control_characters_into_the_inventory(self):
+        cases = {
+            "control character in a user name": SimpleNamespace(Uin=123, Name="broker\u001b[31m", ConsoleLogin=0),
+            "oversized instance name": SimpleNamespace(Uin=123, Name="x" * 1025, ConsoleLogin=0),
+            "non-numeric console flag": SimpleNamespace(Uin=123, Name="broker", ConsoleLogin="true"),
+        }
+        for name, user in cases.items():
+            with patch(CAM_CLIENT) as cam, patch(CVM_CLIENT) as cvm:
+                cam.return_value.ListUsers.return_value.Data = [user]
+                cam.return_value.ListAccessKeys.return_value = SimpleNamespace(AccessKeys=None)
+                cvm.return_value.DescribeInstances.return_value = SimpleNamespace(InstanceSet=[], TotalCount=0)
+                with self.subTest(record=name), self.assertRaises(FederationError):
+                    Cloud("AKID-FAKE-ID", "fake-secret-key").discover(["ap-singapore"])
+
+    def test_an_address_that_is_not_an_address_literal_is_rejected(self):
+        for addresses in ([None, "10.0.0.1"], ["10.0.0.1\u001b[0m"], ["10.0.0.1; rm -rf /"]):
+            with patch(CAM_CLIENT) as cam, patch(CVM_CLIENT) as cvm:
+                cam.return_value.ListUsers.return_value.Data = []
+                instance = _instance("ins-1", addresses, [])
+                cvm.return_value.DescribeInstances.return_value = SimpleNamespace(
+                    InstanceSet=[instance], TotalCount=1
+                )
+                with self.subTest(addresses=addresses), self.assertRaises(FederationError):
+                    Cloud("AKID-FAKE-ID", "fake-secret-key").discover(["ap-singapore"])
+
     def test_invalid_region_is_rejected_without_building_a_cvm_client(self):
         # Suffix forms such as ap-singapore-1 are valid syntax and covered separately.
         for region in ("ap_singapore", "AP-Singapore", "", "ap", "a-guangzhou"):

@@ -23,7 +23,7 @@ try {
     New-Item -ItemType Directory -Path $InstallDir | Out-Null
     # Dedicated installation directory: administrators and SYSTEM only initially.
     Invoke-Checked -Exe 'icacls.exe' -Arguments @($InstallDir, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F')
-    foreach ($Name in @('app.py','federation.py','configuration.py','security.py','runtime.py','version.py','requirements.lock.txt')) {
+    foreach ($Name in @('app.py','federation.py','configuration.py','security.py','runtime.py','version.py','requirements.lock.txt','requirements.lock.hashes.txt')) {
         Copy-Item -LiteralPath (Join-Path $SourceDir $Name) -Destination $InstallDir
     }
     New-Item -ItemType Directory -Path (Join-Path $InstallDir 'pam') | Out-Null
@@ -33,7 +33,15 @@ try {
     Copy-Item -LiteralPath $SettingsFile -Destination (Join-Path $InstallDir 'settings.json')
     Invoke-Checked -Exe $PythonExe -Arguments @('-m','venv',(Join-Path $InstallDir 'venv'))
     $ServicePython = Join-Path $InstallDir 'venv\Scripts\python.exe'
-    Invoke-Checked -Exe $ServicePython -Arguments @('-m','pip','install','-r',(Join-Path $InstallDir 'requirements.lock.txt'))
+    # Prefer the hash-pinned lock: this install runs elevated, so a substituted
+    # artifact would otherwise execute with administrator rights.
+    $HashLock = Join-Path $InstallDir 'requirements.lock.hashes.txt'
+    if (Test-Path $HashLock) {
+        Invoke-Checked -Exe $ServicePython -Arguments @('-m','pip','install','--require-hashes','-r',$HashLock)
+    } else {
+        Write-Warning 'requirements.lock.hashes.txt is missing: dependencies are installed without hash verification. Generate it with scripts/pin_lock_hashes.py and re-run for a verified install.'
+        Invoke-Checked -Exe $ServicePython -Arguments @('-m','pip','install','-r',(Join-Path $InstallDir 'requirements.lock.txt'))
+    }
     Copy-Item -LiteralPath $WinSWExe -Destination (Join-Path $InstallDir 'PSMTencentCloudSTS.exe')
     function New-Secret {
         $Bytes = New-Object byte[] 48
@@ -69,7 +77,12 @@ try {
     # This generated file contains the proxy secret. Only copy it into an ACL-protected IIS root.
     $WebConfig = Get-Content -Raw -LiteralPath (Join-Path $SourceDir 'deployment\web.config.template')
     $WebConfig = $WebConfig.Replace('REPLACE_WITH_PRIVATE_PROXY_KEY', $ProxyKey)
-    Set-Content -LiteralPath (Join-Path $InstallDir 'web.config.generated') -Value $WebConfig -Encoding UTF8
+    $WebConfigPath = Join-Path $InstallDir 'web.config.generated'
+    Set-Content -LiteralPath $WebConfigPath -Value $WebConfig -Encoding UTF8
+    # The install directory grants LocalService read (the service XML needs it), so this
+    # file must be re-protected explicitly or any LocalService process could read the
+    # proxy key and bypass the IIS authentication boundary with a forged identity header.
+    Invoke-Checked -Exe 'icacls.exe' -Arguments @($WebConfigPath, '/inheritance:r', '/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:R')
     $Installed = $true
     Invoke-Checked -Exe (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') -Arguments @('install')
     Invoke-Checked -Exe (Join-Path $InstallDir 'PSMTencentCloudSTS.exe') -Arguments @('start')

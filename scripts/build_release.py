@@ -11,7 +11,8 @@ sys.path.insert(0, str(ROOT))
 from version import VERSION  # noqa: E402
 
 FILES = ['app.py', 'configuration.py', 'federation.py', 'security.py', 'runtime.py', 'version.py', 'README.md', 'README.zh-CN.md',
-         'requirements.in', 'requirements.lock.txt', 'requirements-dev.txt', 'pyproject.toml',
+         'requirements.in', 'requirements.lock.txt', 'requirements.lock.hashes.txt',
+         'requirements-dev.txt', 'pyproject.toml',
          '.pre-commit-config.yaml', 'WebFormFields.template.txt',
          'settings.example.json', 'cam-assume-policy.example.json', 'SECURITY.md',
          'CONTRIBUTING.md', 'CHANGELOG.md', 'NOTICE.md', 'LICENSE']
@@ -35,7 +36,8 @@ with ZipFile(archive, 'w', compression=ZIP_DEFLATED) as output:
 # Inventory describes the locked source dependencies, not installed production hosts.
 components = []
 for raw in (ROOT / 'requirements.lock.txt').read_text().splitlines():
-    line = raw.strip()
+    # Tolerate a hash-pinned lock: 'name==version \' followed by '--hash=sha256:...' lines.
+    line = raw.split('\\')[0].split('--hash')[0].strip()
     if not line or line.startswith('#'):
         continue
     name, version = line.split('==')

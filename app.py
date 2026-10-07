@@ -12,6 +12,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from flask import Flask, Response, abort, g, redirect, render_template_string, request, session
+from werkzeug.exceptions import HTTPException
 
 from configuration import load_settings, validate_settings
 from federation import assume_role, login_url
@@ -88,6 +89,10 @@ def create_app(
         identity = request.headers['X-PSM-Authenticated-User']
         if not identity.strip() or any(ord(c) < 32 or ord(c) == 127 for c in identity):
             abort(403)
+        # waitress comma-joins repeated headers, so an appended value would land in
+        # the identity, the token binding key and the audit record at once.
+        if identity != identity.strip() or ',' in identity:
+            abort(403)
         return None
 
     @app.after_request
@@ -135,10 +140,10 @@ def create_app(
         expected = {'csrf', 'profile', 'secret_id', 'secret_key', 'audit_label'}
         if set(request.form) != expected or any(len(request.form.getlist(k)) != 1 for k in expected):
             abort(400)
-        csrf = session.pop('csrf', None)
+        # Peek, do not pop: the session copy is only burned once the slot below is
+        # reserved, so a 503 leaves the submitted form usable for a retry.
+        csrf = session.get('csrf')
         if not csrf or not hmac.compare_digest(csrf.encode(), request.form.get('csrf', '').encode()):
-            abort(403)
-        if not tokens.consume(csrf, request.headers['X-PSM-Authenticated-User']):
             abort(403)
         profile = profiles.get(request.form.get('profile', ''))
         sid = request.form.get('secret_id', '')
@@ -152,11 +157,19 @@ def create_app(
             abort(400)
         # Label is supplied by the form, not proof of human identity. A random suffix avoids collisions.
         name = f'psm-{label}-{g.request_id}'
+        # Reserve the slot before consuming: returning 503 after burning the token
+        # would force a form reload and re-entry of the SecretKey for nothing.
         if not issuance_slots.acquire(blocking=False):
             return 'Connection service busy. Start a new connection later.', 503, {'Retry-After': '5'}
         try:
+            session.pop('csrf', None)
+            if not tokens.consume(csrf, request.headers['X-PSM-Authenticated-User']):
+                abort(403)
             creds = sts(sid, key, profile['role_arn'], name, profile['duration_seconds'], profile['region'])
             url = login_url(creds, profile['destination'])
+        except (HTTPException, TokenStoreError):
+            # A token-backend outage must keep its own 503/Retry-After contract.
+            raise
         except Exception:  # noqa: BLE001 - never forward error text
             # Never allow exception text/tracebacks to include temporary or long-term secrets.
             return f'Tencent Cloud connection failed. Reference: {g.request_id}', 502

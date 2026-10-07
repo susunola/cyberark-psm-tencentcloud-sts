@@ -281,6 +281,26 @@ class InProcessTokenStoreTests(unittest.TestCase):
             self.assertFalse(store.consume(token, "alice"))
             self.assertGreaterEqual(clock.call_count, 2)
 
+    def test_one_identity_cannot_exhaust_the_shared_pool(self):
+        store = TokenStore(capacity=10, ttl=60)
+        for _ in range(50):
+            self.assertIsNotNone(store.issue("mallory"))
+        self.assertEqual(len(store.tokens), 3)
+        token = store.issue("alice")
+        self.assertIsNotNone(token)
+        self.assertTrue(store.consume(token, "alice"))
+
+    def test_the_per_identity_bound_never_exceeds_the_pool(self):
+        store = TokenStore(capacity=2, ttl=60)
+        self.assertEqual(store.identity_capacity, 2)
+        for _ in range(5):
+            self.assertIsNotNone(store.issue("mallory"))
+        self.assertLessEqual(len(store.tokens), 2)
+        with self.assertRaises(ValueError):
+            TokenStore(capacity=2, ttl=60, identity_capacity=3)
+        with self.assertRaises(ValueError):
+            TokenStore(capacity=10, ttl=60, identity_capacity=0)
+
     def test_construction_rejects_a_bad_capacity_or_ttl(self):
         for overrides in (
             {"capacity": 0},
@@ -398,11 +418,14 @@ class RedisTokenStoreTests(unittest.TestCase):
         self.assertIsInstance(token, str)
         script, key_count, *extra = client.eval.call_args.args
         self.assertEqual(script, ISSUE_SCRIPT)
-        self.assertEqual(key_count, 2)
+        self.assertEqual(key_count, 3)
         self.assertEqual(tuple(extra[:2]), store.keys)
-        self.assertEqual(extra[2], RedisTokenStore.digest(token))
-        self.assertEqual(extra[3], RedisTokenStore.digest("alice"))
-        self.assertEqual(extra[4:], [7, 45_000])
+        # The third key is this identity's own index, kept in the same hash slot.
+        self.assertEqual(extra[2], store.owner_key("alice"))
+        self.assertTrue(extra[2].startswith("{prod}:"))
+        self.assertEqual(extra[3], RedisTokenStore.digest(token))
+        self.assertEqual(extra[4], RedisTokenStore.digest("alice"))
+        self.assertEqual(extra[5:], [7, 45_000, 3])
         self.assertNotIn(token, str(client.eval.call_args))
         for result in (0, 2, -1, "1", b"1"):
             client.eval.return_value = result
@@ -415,10 +438,11 @@ class RedisTokenStoreTests(unittest.TestCase):
         self.assertTrue(store.consume("token-value", "alice"))
         script, key_count, *extra = client.eval.call_args.args
         self.assertEqual(script, CONSUME_SCRIPT)
-        self.assertEqual(key_count, 2)
+        self.assertEqual(key_count, 3)
         self.assertEqual(tuple(extra[:2]), store.keys)
+        self.assertEqual(extra[2], store.owner_key("alice"))
         self.assertEqual(
-            tuple(extra[2:]),
+            tuple(extra[3:]),
             (RedisTokenStore.digest("token-value"), RedisTokenStore.digest("alice")),
         )
         self.assertNotIn("token-value", str(client.eval.call_args))

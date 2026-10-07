@@ -23,3 +23,13 @@ Use a single backend process in local token mode. Multiple nodes require consist
 Rotate long-term CAM keys via the separate staged administrative workflow or a validated native CPM integration. During rotation, an old/new SecretId pair may share the same profile; remove the old ID after tested cutover. Keep reconciling CAM permissions out of the bridge service. Native guest CPM submissions are asynchronous and cannot substitute for verifying completion. Scheduled preparations retain the old key and never finalize automatically; uncertain writes require inventory reconciliation, not blind retries.
 
 PVWA authentication and MFA are obtained through your approved flow. Administrative adapters require verified HTTPS, reject redirects and do not retry writes automatically. Protect state/output directories, especially on Windows where mode 0600 alone does not set a DACL. Native PSM connection and playback responses may contain authentication material; they are saved only in exclusive protected files. Do not commit inventories, actual shared settings, session tokens, output files or tickets. Rotate proxy and session signing keys during a maintenance window; this invalidates in-flight forms.
+
+## Server-level rejections
+
+The backend binds to loopback and is configured with an 8 KB request-body cap and
+a 16 KB header cap. A request that exceeds either is rejected by the HTTP server
+before it reaches the application, so those responses (413/431) carry the server's
+own body without the application's `Content-Security-Policy`,
+`Cache-Control: no-store`, `X-Content-Type-Options` or `X-Request-ID` headers. The
+responses are static and contain no request data. If your baseline requires uniform
+response headers on that path, terminate it at the authenticated proxy instead.

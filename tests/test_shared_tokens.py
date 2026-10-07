@@ -109,7 +109,8 @@ class RealRedisTests(unittest.TestCase):
         self.store = RedisTokenStore(self.client, namespace=self.namespace)
 
     def tearDown(self):
-        self.client.delete(*self.store.keys)
+        # Includes the per-identity index keys created by the issue script.
+        self.client.delete(*self.client.keys(self.store.prefix + ":*"))
         self.client.close()
 
     def test_cross_node_atomic_replay(self):
@@ -128,6 +129,13 @@ class RealRedisTests(unittest.TestCase):
         time.sleep(0.08)
         self.assertFalse(store.consume(token, "alice"))
         self.assertIsNotNone(store.issue("bob"))
+
+    def test_one_identity_cannot_exhaust_the_shared_pool(self):
+        store = RedisTokenStore(self.client, namespace=self.namespace, capacity=6)
+        for _ in range(50):
+            self.assertIsNotNone(store.issue("mallory"))
+        self.assertIsNotNone(store.issue("alice"))
+        self.assertLessEqual(self.client.zcard(store.owner_key("mallory")), 3)
 
     def test_records_do_not_contain_raw_tokens_or_identity(self):
         token = self.store.issue("private-identity")
