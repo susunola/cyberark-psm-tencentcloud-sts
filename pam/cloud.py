@@ -12,6 +12,12 @@ MAX_VENDOR_TEXT = 1024
 VENDOR_HOST_PATTERN = re.compile(r'[0-9A-Fa-f:.]{1,64}')
 KEY_ID_PATTERN = re.compile(r'[A-Za-z0-9_-]{1,256}')
 MAX_CAM_KEYS = 10
+# CAM's ListUsers has no pagination fields in v20190116 and returns every sub-user
+# in one response, so this is a bound on an unbounded reply rather than a page size.
+# An organisation above it must raise the bound deliberately and accept the larger
+# response: assert_subuser runs before every key mutation and has no narrower API.
+DEFAULT_MAX_CAM_USERS = 1000
+MAX_CAM_USERS_CEILING = 100000
 
 
 def uin(value: object) -> int:
@@ -51,13 +57,24 @@ def display_hosts(value: object) -> list[str]:
 
 
 class Cloud:
-    def __init__(self, secret_id: str, secret_key: str, region: str = 'ap-singapore') -> None:
+    def __init__(
+        self,
+        secret_id: str,
+        secret_key: str,
+        region: str = 'ap-singapore',
+        max_users: int = DEFAULT_MAX_CAM_USERS,
+    ) -> None:
         from tencentcloud.cam.v20190116.cam_client import CamClient
         from tencentcloud.common.credential import Credential
         from tencentcloud.common.profile.client_profile import ClientProfile
         from tencentcloud.common.profile.http_profile import HttpProfile
 
         validate_region(region)
+        if isinstance(max_users, bool) or not isinstance(max_users, int):
+            raise ValueError('CAM sub-user bound must be an integer')
+        if not 1 <= max_users <= MAX_CAM_USERS_CEILING:
+            raise ValueError(f'CAM sub-user bound must be 1..{MAX_CAM_USERS_CEILING}')
+        self.max_users = max_users
         self.credential = Credential(secret_id, secret_key)
         self.region = region
         self.cam = CamClient(self.credential, region, ClientProfile(httpProfile=HttpProfile(endpoint='cam.intl.tencentcloudapi.com', reqTimeout=15)))
@@ -132,8 +149,12 @@ class Cloud:
         from tencentcloud.cam.v20190116.models import ListUsersRequest
 
         users = self.call(self.cam.ListUsers, ListUsersRequest()).Data
-        if not isinstance(users, list) or len(users) > 1000:
-            raise FederationError('Invalid or oversized CAM inventory')
+        if not isinstance(users, list) or len(users) > self.max_users:
+            # Naming the bound and the knob makes this actionable rather than a dead end.
+            raise FederationError(
+                f'CAM inventory exceeds the configured bound of {self.max_users} sub-users; '
+                'raise PSM_TC_MAX_CAM_USERS deliberately and expect a larger response'
+            )
         seen: set[str] = set()
         for user in users:
             target = str(uin(user.Uin))

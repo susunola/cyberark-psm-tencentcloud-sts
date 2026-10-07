@@ -9,7 +9,7 @@ import re
 import threading
 import uuid
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, NoReturn
 
 from flask import Flask, Response, abort, g, redirect, render_template_string, request, session
 from werkzeug.exceptions import HTTPException
@@ -46,6 +46,22 @@ TokenStoreLike = Any
 # Issuance admission. One worker thread is deliberately left free for health
 # checks, so the default slot count tracks runtime.THREADS; the relationship is
 # asserted by tests/test_bridge_admission.py so the two cannot drift apart.
+# Machine-readable rejection reasons. Fixed codes only: vendor text, form values
+# and credentials must never reach the audit log.
+PROXY_PEER_REJECTED = 'proxy-peer-rejected'
+PROXY_KEY_REJECTED = 'proxy-key-rejected'
+IDENTITY_REJECTED = 'identity-header-rejected'
+FORM_SHAPE_REJECTED = 'form-shape-rejected'
+CSRF_REJECTED = 'csrf-rejected'
+TOKEN_REJECTED = 'token-rejected'
+BINDING_REJECTED = 'binding-rejected'
+LABEL_REJECTED = 'label-rejected'
+ADMISSION_BUSY = 'admission-busy'
+CAPACITY_EXHAUSTED = 'token-capacity-exhausted'
+BACKEND_UNAVAILABLE = 'token-backend-unavailable'
+UNSPECIFIED_REASON = 'unspecified'
+ISSUANCE_FAILED = 'issuance-failed'
+
 DEFAULT_ISSUANCE_SLOTS = 3
 MAX_ISSUANCE_SLOTS = 64
 # How long a submission may wait for a slot before the bridge reports busy. The
@@ -54,6 +70,16 @@ MAX_ISSUANCE_SLOTS = 64
 DEFAULT_ISSUANCE_WAIT_SECONDS = 5.0
 MAX_ISSUANCE_WAIT_SECONDS = 60.0
 BUSY_RETRY_AFTER = '5'
+
+
+def reject(reason: str, status: int = 403) -> NoReturn:
+    """Record why a request was refused, then abort.
+
+    Security monitoring needs to tell "someone is tampering with the form" apart
+    from "the token backend is down", which a bare status code cannot express.
+    """
+    g.rejection_reason = reason
+    abort(status)
 
 
 def normalize_audit_label(label: str) -> str:
@@ -104,21 +130,22 @@ def create_app(
         g.request_id = uuid.uuid4().hex
         # Never use ProxyFix/X-Forwarded-For to decide whether the peer is local.
         if request.remote_addr not in ('127.0.0.1', '::1'):
-            abort(403)
+            reject(PROXY_PEER_REJECTED)
         supplied = request.headers.get('X-PSM-Bridge-Key', '')
         if not hmac.compare_digest(supplied.encode(), proxy_key.encode()):
-            abort(403)
-        if not request.headers.get('X-PSM-Authenticated-User'):
-            abort(403)
-        if len(request.headers['X-PSM-Authenticated-User']) > 256:
-            abort(403)
-        identity = request.headers['X-PSM-Authenticated-User']
+            reject(PROXY_KEY_REJECTED)
+        identity = request.headers.get('X-PSM-Authenticated-User', '')
+        if not identity or len(identity) > 256:
+            reject(IDENTITY_REJECTED)
         if not identity.strip() or any(ord(c) < 32 or ord(c) == 127 for c in identity):
-            abort(403)
+            reject(IDENTITY_REJECTED)
+        # Printable and bounded, so worth recording: a rejected value here is either a
+        # genuine identity or a smuggling attempt, and triage needs to tell which.
+        g.claimed_identity = identity
         # waitress comma-joins repeated headers, so an appended value would land in
         # the identity, the token binding key and the audit record at once.
         if identity != identity.strip() or ',' in identity:
-            abort(403)
+            reject(IDENTITY_REJECTED)
         return None
 
     @app.after_request
@@ -132,11 +159,19 @@ def create_app(
             'Content-Security-Policy': CSP,
         })
         # No form values, URL queries, cookies, Location headers or exception messages.
-        logger.info(audit_event({
+        fields = {
             'event': 'http_result',
             'request_id': g.request_id,
             'status': response.status_code,
-        }))
+        }
+        if response.status_code >= 400:
+            # Triage needs the reason and who presented which identity; a bare status
+            # code cannot separate tampering attempts from an outage.
+            fields['reason'] = getattr(g, 'rejection_reason', UNSPECIFIED_REASON)
+            claimed = getattr(g, 'claimed_identity', None)
+            if claimed:
+                fields['proxy_identity'] = claimed
+        logger.info(audit_event(fields))
         return response
 
     @app.get('/healthz')
@@ -150,6 +185,7 @@ def create_app(
     @app.errorhandler(TokenStoreError)
     def token_backend_failure(error: TokenStoreError) -> tuple[str, int, dict[str, str]]:
         session.clear()
+        g.rejection_reason = BACKEND_UNAVAILABLE
         return 'Connection service unavailable. Start a new connection later.', 503, {'Retry-After': '5'}
 
     @app.get('/')
@@ -157,6 +193,7 @@ def create_app(
         session.clear()
         token = tokens.issue(request.headers['X-PSM-Authenticated-User'])
         if token is None:
+            g.rejection_reason = CAPACITY_EXHAUSTED
             return 'Too many pending connections. Retry later.', 429, {'Retry-After': '120'}
         session['csrf'] = token
         return render_template_string(FORM, csrf=session['csrf'])
@@ -165,22 +202,22 @@ def create_app(
     def connect() -> Any:
         expected = {'csrf', 'profile', 'secret_id', 'secret_key', 'audit_label'}
         if set(request.form) != expected or any(len(request.form.getlist(k)) != 1 for k in expected):
-            abort(400)
+            reject(FORM_SHAPE_REJECTED, 400)
         # Peek, do not pop: the session copy is only burned once the slot below is
         # reserved, so a 503 leaves the submitted form usable for a retry.
         csrf = session.get('csrf')
         if not csrf or not hmac.compare_digest(csrf.encode(), request.form.get('csrf', '').encode()):
-            abort(403)
+            reject(CSRF_REJECTED)
         profile = profiles.get(request.form.get('profile', ''))
         sid = request.form.get('secret_id', '')
         key: str | None = request.form.get('secret_key', '')
         label = request.form.get('audit_label', '')
         if not profile or sid not in profile['allowed_secret_ids'] or not key or not 1 <= len(key) <= 512:
-            abort(400)
+            reject(BINDING_REJECTED, 400)
         try:
             label = normalize_audit_label(label)
         except ValueError:
-            abort(400)
+            reject(LABEL_REJECTED, 400)
         # Label is supplied by the form, not proof of human identity. A random suffix avoids collisions.
         name = f'psm-{label}-{g.request_id}'
         # Reserve the slot before consuming: returning 503 after burning the token
@@ -189,11 +226,12 @@ def create_app(
         # indefinitely; PSM's form submission does not retry by itself, so a short
         # queue absorbs normal shift-change bursts instead of failing them.
         if not slots.acquire(timeout=issuance_wait):
+            g.rejection_reason = ADMISSION_BUSY
             return 'Connection service busy. Start a new connection later.', 503, {'Retry-After': BUSY_RETRY_AFTER}
         try:
             session.pop('csrf', None)
             if not tokens.consume(csrf, request.headers['X-PSM-Authenticated-User']):
-                abort(403)
+                reject(TOKEN_REJECTED)
             creds = sts(sid, key, profile['role_arn'], name, profile['duration_seconds'], profile['region'])
             url = login_url(creds, profile['destination'])
         except (HTTPException, TokenStoreError):
@@ -201,6 +239,7 @@ def create_app(
             raise
         except Exception:  # noqa: BLE001 - never forward error text
             # Never allow exception text/tracebacks to include temporary or long-term secrets.
+            g.rejection_reason = ISSUANCE_FAILED
             return f'Tencent Cloud connection failed. Reference: {g.request_id}', 502
         finally:
             slots.release()

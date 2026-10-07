@@ -41,6 +41,8 @@ python scripts/run_maintenance.py --jobs maintenance.json --settings settings.js
 
 Without `--apply` no jobs run. Provision a protected state directory, review the manifest, then add `--apply`. Execute from your organization's scheduler through a protected wrapper which obtains a **fresh** PVWA session and cloud credentials for each run. Do not put tokens or keys in Task Scheduler/cron arguments or job manifests. Native guest password rotation should use the installed native CPM platform's schedule.
 
+Interactive `prepare` takes a per-target lock beside the ticket (`<ticket>.target-lock`) and refuses to start while another preparation holds it, because the spare-slot check is check-then-act and two runs reading the inventory before either creates a key leave three keys behind. A lock that a crashed run left behind must be reconciled and removed by hand, exactly like the maintenance state-directory lock.
+
 Only one runner may use a state directory at a time. A crash lock is not stolen automatically: check the process/outcome before removing it. A prepare job retains its journal/ticket and refuses another run with the same ID; it cannot repeatedly mint replacements. Archive a completed ticket only after cutover and retention review. A failure stops later jobs; uncertain writes retain recovery journals. Use one scheduling authority per target UIN; the filesystem lock is not a distributed cloud lock. No scheduled job claims browser/recording acceptance or stops the old key automatically.
 
 ## Shared token deployment

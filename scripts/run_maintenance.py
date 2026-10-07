@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from configuration import load_settings
-from pam.cloud import Cloud
+from pam.cloud import DEFAULT_MAX_CAM_USERS, Cloud
 from pam.files import read_json
 from pam.maintenance import run
 from pam.vault import Vault
@@ -24,7 +24,13 @@ def main() -> None:
         print(json.dumps({'status': 'no-write', 'next': 'Review jobs and supply --apply to run maintenance'}))
         return
     try:
-        cloud = Cloud(os.environ['TENCENTCLOUD_SECRET_ID'], os.environ['TENCENTCLOUD_SECRET_KEY'])
+        # CAM's ListUsers cannot be paginated, so the bound is explicit here too.
+        max_users = os.environ.get('PSM_TC_MAX_CAM_USERS') or str(DEFAULT_MAX_CAM_USERS)
+        cloud = Cloud(
+            os.environ['TENCENTCLOUD_SECRET_ID'],
+            os.environ['TENCENTCLOUD_SECRET_KEY'],
+            max_users=int(max_users),
+        )
         vault = Vault(os.environ['PVWA_API_URL'], os.environ['PVWA_TOKEN'], ca=os.environ.get('PVWA_CA_BUNDLE') or True)
         result = run(read_json(args.jobs), load_settings(args.settings), args.state_dir, cloud, vault)
     except Exception:  # noqa: BLE001 - never forward error text

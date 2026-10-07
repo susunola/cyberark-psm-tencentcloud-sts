@@ -194,6 +194,22 @@ class AccessKeyListTests(unittest.TestCase):
             cam.return_value.ListAccessKeys.return_value = SimpleNamespace(AccessKeys=None)
             self.assertEqual(cloud.keys(123), [])
 
+    def test_the_sub_user_bound_is_configurable_and_reported(self):
+        """CAM's ListUsers cannot be paginated, so the bound must be explicit."""
+        with patch(CAM_CLIENT) as cam:
+            cam.return_value.ListUsers.return_value.Data = [SimpleNamespace(Uin=i) for i in range(1, 21)]
+            self.assertEqual(len(Cloud("AKID-FAKE-ID", "fake-secret-key").users()), 20)
+            self.assertEqual(len(Cloud("AKID-FAKE-ID", "fake-secret-key", max_users=50).users()), 20)
+            with self.assertRaises(FederationError) as error:
+                Cloud("AKID-FAKE-ID", "fake-secret-key", max_users=10).users()
+            # The message must name the knob, or an operator is stuck with a dead end.
+            self.assertIn("PSM_TC_MAX_CAM_USERS", str(error.exception))
+
+    def test_a_nonsensical_sub_user_bound_is_refused(self):
+        for bound in (0, -1, 100001, True, "10", None):
+            with self.subTest(bound=bound), self.assertRaises(ValueError):
+                Cloud("AKID-FAKE-ID", "fake-secret-key", max_users=bound)
+
     def test_invalid_target_never_reaches_the_sdk(self):
         with patch(CAM_CLIENT) as cam:
             cloud = _cam_cloud(cam)

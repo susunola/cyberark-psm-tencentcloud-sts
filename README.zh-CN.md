@@ -182,6 +182,7 @@ flowchart TB
 | `PSM_TC_ISSUANCE_SLOTS` | `3`（比 `runtime.THREADS` 少一个线程） | 每节点并发 STS 调用数。槽位在消费单次令牌**之前**预留，因此排队中的提交不会白白烧掉令牌。 |
 | `PSM_TC_ISSUANCE_WAIT_SECONDS` | `5` | 提交等待槽位的时长，超时后返回 `503` 与 `Retry-After`。等待有上限，因为期间会占用一个工作线程。 |
 | `PSM_TC_IDENTITY_CAPACITY` | 每身份 `3` | 单个身份可持有的待用表单令牌数。默认值假设一人一个 Windows 身份，详见代理前置条件。 |
+| `PSM_TC_MAX_CAM_USERS` | `1000` | 管理工具读取的子用户数上限。CAM 的 `ListUsers` 在 `v20190116` 中没有任何分页字段，会一次返回全部子用户，因此这是对无界响应设的上界：大型组织需主动提高并接受更大的响应体。 |
 
 提交会排队至多 `PSM_TC_ISSUANCE_WAIT_SECONDS`，之后返回 `503` 与 `Retry-After`。PSM 的表单提交不会自动重试，因此超过槽位数与等待时长的突发流量仍会看到错误页；请按峰值并发登录量设置槽位数。
 

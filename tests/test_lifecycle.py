@@ -1,6 +1,8 @@
 import copy
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -166,6 +168,36 @@ class LifecycleTests(unittest.TestCase):
         with self.assertRaises(LifecycleError):
             restore_old(self.cloud, self.vault, ticket, self.settings)
         self.cloud.set_key_status.assert_not_called()
+
+    def test_cli_prepare_refuses_a_target_that_another_run_holds(self):
+        """Two preparations for one target must not interleave.
+
+        The spare-slot check in prepare is check-then-act, so a second run that reads
+        the inventory before the first creates a key leaves three keys behind.
+        """
+        root = Path(__file__).resolve().parents[1]
+        script = str(root / 'scripts/pamctl.py')
+        with tempfile.TemporaryDirectory() as folder:
+            ticket = Path(folder) / 'rotation.json'
+            lock = Path(str(ticket) + '.target-lock')
+            lock.write_text('{}')
+            environment = {
+                **os.environ,
+                'PVWA_API_URL': 'https://pvwa.invalid/PasswordVault/API',
+                'PVWA_TOKEN': 'fake-token',
+                'TENCENTCLOUD_SECRET_ID': 'fake-id',
+                'TENCENTCLOUD_SECRET_KEY': 'fake-key',
+            }
+            result = subprocess.run(
+                [sys.executable, script, 'prepare', '--old-account', 'old-account', '--target-uin', '123',
+                 '--profile', 'readonly', '--ticket', str(ticket), '--apply'],
+                capture_output=True, text=True, env=environment, check=False, timeout=60,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('serialised', result.stderr)
+            # The holder's lock and the journal reservation must both be untouched.
+            self.assertTrue(lock.exists())
+            self.assertFalse(ticket.exists())
 
     def test_cli_write_defaults_to_no_write(self):
         root=Path(__file__).resolve().parents[1]

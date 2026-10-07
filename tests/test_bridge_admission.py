@@ -1,5 +1,8 @@
 """Regressions for the bridge identity guard and the issuance admission order."""
 
+import io
+import json
+import logging
 import re
 import threading
 import time
@@ -190,6 +193,124 @@ class SharedIdentityCapacityTests(unittest.TestCase):
         )
         codes = [response.status_code for response in self.four_sessions(app)]
         self.assertEqual(codes, [303, 303, 303, 303])
+
+
+class RejectionAuditTests(unittest.TestCase):
+    """M2: a refused request must say why, and who presented which identity."""
+
+    def events(self, action):
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        audit = logging.getLogger('psm_tencent.audit')
+        audit.addHandler(handler)
+        previous = audit.level
+        audit.setLevel(logging.INFO)
+        try:
+            client = create_app(
+                SETTINGS, proxy_key=KEY, session_key='s' * 32, sts=MagicMock(return_value=CREDENTIALS)
+            ).test_client()
+            action(client)
+        finally:
+            audit.removeHandler(handler)
+            audit.setLevel(previous)
+        return [json.loads(line) for line in stream.getvalue().splitlines()]
+
+    def csrf_token(self, client, who='alice'):
+        return load_form(client, who)
+
+    def test_each_refusal_carries_a_fixed_reason_code(self):
+        def wrong_key(client):
+            client.get('/', headers=headers(key='p' * 31), base_url='https://bridge.local')
+
+        def smuggled_identity(client):
+            client.get('/', headers=headers('mallory, alice'), base_url='https://bridge.local')
+
+        def bad_csrf(client):
+            client.post(
+                '/connect', data=submitted_form('not-the-token'), headers=headers(), base_url='https://bridge.local'
+            )
+
+        def binding_mismatch(client):
+            client.post(
+                '/connect',
+                data={**submitted_form(self.csrf_token(client)), 'profile': 'not-a-profile'},
+                headers=headers(),
+                base_url='https://bridge.local',
+            )
+
+        def oversized_form(client):
+            client.post(
+                '/connect',
+                data={**submitted_form(self.csrf_token(client)), 'extra': '1'},
+                headers=headers(),
+                base_url='https://bridge.local',
+            )
+
+        for action, expected in (
+            (wrong_key, 'proxy-key-rejected'),
+            (smuggled_identity, 'identity-header-rejected'),
+            (bad_csrf, 'csrf-rejected'),
+            (binding_mismatch, 'binding-rejected'),
+            (oversized_form, 'form-shape-rejected'),
+        ):
+            with self.subTest(expected=expected):
+                failures = [row for row in self.events(action) if row.get('status', 0) >= 400]
+                self.assertTrue(failures, 'no failed request was recorded')
+                self.assertEqual(failures[-1]['reason'], expected)
+
+    def test_a_smuggled_identity_is_recorded_but_a_malformed_one_is_not(self):
+        # The smuggling value is printable and bounded, so triage needs to see it;
+        # a control-character or oversized value is not echoed into the log.
+        smuggled = [row for row in self.events(lambda c: c.get(
+            '/', headers=headers('mallory, alice'), base_url='https://bridge.local'
+        )) if row.get('status') == 403]
+        self.assertEqual(smuggled[-1].get('proxy_identity'), 'mallory, alice')
+
+        malformed = [row for row in self.events(lambda c: c.get(
+            '/', headers=headers('x' * 300), base_url='https://bridge.local'
+        )) if row.get('status') == 403]
+        self.assertNotIn('proxy_identity', malformed[-1])
+
+    def test_an_authenticated_refusal_names_the_identity_and_a_success_has_no_reason(self):
+        def refused(client):
+            client.post(
+                '/connect', data=submitted_form('not-the-token'), headers=headers(), base_url='https://bridge.local'
+            )
+
+        failed = [row for row in self.events(refused) if row.get('status') >= 400]
+        self.assertEqual(failed[-1]['proxy_identity'], 'alice')
+
+        def succeeded(client):
+            token = self.csrf_token(client)
+            client.post(
+                '/connect', data=submitted_form(token), headers=headers(), base_url='https://bridge.local'
+            )
+
+        rows = self.events(succeeded)
+        issued = [row for row in rows if row.get('event') == 'role_session_issued']
+        self.assertEqual(len(issued), 1)
+        # A successful response carries no rejection reason.
+        for row in rows:
+            if row.get('event') == 'http_result':
+                self.assertNotIn('reason', row)
+
+    def test_the_audit_record_never_carries_the_credential(self):
+        secret = 'fake-broker-key-' + 'x' * 20
+        rows = self.events(lambda c: c.post(
+            '/connect',
+            data={
+                'csrf': 'wrong',
+                'profile': 'readonly',
+                'secret_id': 'broker-id',
+                'secret_key': secret,
+                'audit_label': 'alice',
+            },
+            headers=headers(),
+            base_url='https://bridge.local',
+        ))
+        rendered = json.dumps(rows)
+        self.assertNotIn(secret, rendered)
+        self.assertNotIn('broker-id', rendered)
 
 
 class RefusingIssuanceSlots:

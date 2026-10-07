@@ -175,6 +175,16 @@ Tencent Cloud uses `roleAccessCallback`, rather than AWS's `getSigninToken`. The
 
 The long-term SecretKey is used in the HTTPS form submission and server memory, not files, logs, or command-line arguments. Python cannot guarantee memory zeroization. The callback URL **contains temporary credentials** and may be readable by browsers, administrators, or diagnostic tools. Apply your PSM Web baseline to debugging tools and logs, and test user-accessible extraction paths. This implementation does not guarantee that credentials are impossible to extract.
 
+## Rejection audit trail
+
+Every response is logged once as `http_result`. A response with status 400 or above also carries a fixed `reason` code and, once the identity header has passed shape validation, the `proxy_identity` that presented it:
+
+```json
+{"event": "http_result", "request_id": "…", "status": 403, "reason": "csrf-rejected", "proxy_identity": "DOMAIN\alice"}
+```
+
+Codes are `proxy-peer-rejected`, `proxy-key-rejected`, `identity-header-rejected`, `form-shape-rejected`, `csrf-rejected`, `token-rejected`, `binding-rejected`, `label-rejected`, `token-capacity-exhausted`, `admission-busy`, `token-backend-unavailable`, `issuance-failed` and `unspecified`. Only fixed codes are logged: form values, secrets and vendor text never are. A malformed identity (over-long or containing control characters) is not echoed, but a shape-valid value that failed the comma/whitespace rule is recorded, so header smuggling is visible to monitoring. The aggregate report in `pam/audit.py` still drops identities and reasons; it counts statuses and profile names only.
+
 ## Issuance admission and identity bounds
 
 Two deployment-dependent numbers are configurable without a rebuild:
@@ -184,6 +194,7 @@ Two deployment-dependent numbers are configurable without a rebuild:
 | `PSM_TC_ISSUANCE_SLOTS` | `3` (one worker thread fewer than `runtime.THREADS`) | Concurrent STS calls per node. A slot is reserved before the single-use token is consumed, so a queued submission never burns a token. |
 | `PSM_TC_ISSUANCE_WAIT_SECONDS` | `5` | How long a submission waits for a slot before the bridge answers `503` with `Retry-After`. The wait is bounded because it holds a worker thread. |
 | `PSM_TC_IDENTITY_CAPACITY` | `3` per identity | Pending form tokens one identity may hold. The default assumes one Windows identity per person; see the proxy prerequisites. |
+| `PSM_TC_MAX_CAM_USERS` | `1000` | Sub-users read by the administrative toolkit. CAM's `ListUsers` has no pagination fields in `v20190116` and returns every sub-user in one response, so this bounds an unbounded reply: raise it deliberately for a larger organisation and expect a bigger response. |
 
 Submissions queue for up to `PSM_TC_ISSUANCE_WAIT_SECONDS` and then receive `503` with `Retry-After`. PSM's form submission does not retry on its own, so a burst that exceeds both the slot count and the wait will still surface an error page; size the slots against your peak concurrent logins.
 

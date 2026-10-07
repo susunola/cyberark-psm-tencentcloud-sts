@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from configuration import load_settings
 from pam.audit import summarize
-from pam.cloud import Cloud
+from pam.cloud import DEFAULT_MAX_CAM_USERS, Cloud
 from pam.delivery import append_record, export_records, onboard_batch, preflight
 from pam.files import private_output, read_json, save_json
 from pam.lifecycle import Ticket, finalize, prepare, recover_ticket, restore_old
@@ -23,7 +23,26 @@ def vault() -> Vault:
 
 
 def cloud() -> Cloud:
-    return Cloud(os.environ['TENCENTCLOUD_SECRET_ID'], os.environ['TENCENTCLOUD_SECRET_KEY'])
+    # CAM's ListUsers cannot be paginated, so the bound is explicit and overridable
+    # rather than a hidden hard limit in a large organisation.
+    max_users = os.environ.get('PSM_TC_MAX_CAM_USERS') or str(DEFAULT_MAX_CAM_USERS)
+    return Cloud(
+        os.environ['TENCENTCLOUD_SECRET_ID'],
+        os.environ['TENCENTCLOUD_SECRET_KEY'],
+        max_users=int(max_users),
+    )
+
+
+def target_lock(ticket_path: object) -> Path:
+    """Serialise preparations per target UIN.
+
+    The spare-slot check in prepare is check-then-act, so two preparations that read
+    the inventory before either creates a key leave three keys behind and a cutover
+    that cannot be trusted. The maintenance runner holds a state-directory lock; the
+    interactive CLI had only a documented request to serialise, which is why this
+    exists. Kept next to the ticket so it needs no extra configuration.
+    """
+    return Path(str(ticket_path) + '.target-lock')
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -173,19 +192,34 @@ def main() -> None:
         elif args.command == 'prepare':
             # Reserve a journal path BEFORE cloud mutation; never overwrite a previous attempt.
             path = Path(args.ticket)
-            with private_output(path) as journal:
-                operation = uuid.uuid4().hex
-                save_json(journal, {'operation': operation, 'status': 'preparing', 'target_uin': args.target_uin,
-                                   'old_account': args.old_account, 'profile': args.profile})
+            lock = target_lock(path)
             try:
-                ticket = prepare(cloud(), vault(), args.old_account, args.target_uin, args.profile, operation)
-            except Exception:  # noqa: BLE001 - never forward error text
-                raise RuntimeError('Preparation incomplete. Inspect reserved journal and cloud/Vault inventory; do not retry blindly.') from None
-            # Atomic same-directory replacement; the journal never contains a SecretKey.
-            temporary = path.with_name(path.name + '.tmp')
-            with private_output(temporary) as stream:
-                save_json(stream, ticket.public())
-            Path(temporary).replace(path)
+                with private_output(lock):
+                    pass
+            except FileExistsError:
+                # parser.exit raises SystemExit, so this survives the sanitizing handler
+                # below; an operator needs to know this is contention, not a cloud fault.
+                parser.exit(
+                    2,
+                    f'Another preparation holds {lock.name}. Preparations for one target must be '
+                    'serialised: reconcile the existing run before retrying.\n',
+                )
+            try:
+                with private_output(path) as journal:
+                    operation = uuid.uuid4().hex
+                    save_json(journal, {'operation': operation, 'status': 'preparing', 'target_uin': args.target_uin,
+                                       'old_account': args.old_account, 'profile': args.profile})
+                try:
+                    ticket = prepare(cloud(), vault(), args.old_account, args.target_uin, args.profile, operation)
+                except Exception:  # noqa: BLE001 - never forward error text
+                    raise RuntimeError('Preparation incomplete. Inspect reserved journal and cloud/Vault inventory; do not retry blindly.') from None
+                # Atomic same-directory replacement; the journal never contains a SecretKey.
+                temporary = path.with_name(path.name + '.tmp')
+                with private_output(temporary) as stream:
+                    save_json(stream, ticket.public())
+                Path(temporary).replace(path)
+            finally:
+                lock.unlink(missing_ok=True)
             result = {'status': 'prepared-old-key-retained', **ticket.public()}
         else:
             ticket = Ticket(**read_json(args.ticket))
