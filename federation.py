@@ -12,6 +12,13 @@ class FederationError(Exception):
     pass
 
 
+def validate_region(region):
+    # Validate syntax without pretending to maintain a cloud availability catalogue.
+    if not isinstance(region, str) or len(region) > 64 or not re.fullmatch(r'[a-z]{2}-[a-z]+(?:-[a-z0-9]+)*', region):
+        raise ValueError('Invalid cloud region')
+    return region
+
+
 def validate_destination(url):
     if not isinstance(url, str) or not url or len(url) > 2048:
         raise FederationError('Invalid console destination')
@@ -49,6 +56,7 @@ def login_url(credentials, destination, *, now=None, nonce=None):
 
 
 def assume_role(secret_id, secret_key, role_arn, session_name, duration, region):
+    validate_region(region)
     # Explicit credentials: no environment credential fallback or debug logging.
     from tencentcloud.common import credential
     from tencentcloud.common.profile.client_profile import ClientProfile

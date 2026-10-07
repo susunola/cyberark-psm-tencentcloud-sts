@@ -93,7 +93,7 @@ This package includes a runnable bridge and unit tests. It is not a platform ZIP
 
 ## Delivery status and operations
 
-Version 0.5.1 includes strict configuration validation, dedicated caller-to-role binding, Windows install/uninstall scripts, an IIS proxy template, safe audit correlation, CI, a reproducible source archive and SHA256 manifest. Original code uses the MIT license; maintainer: **susunola**.
+Version 0.5.2 includes strict configuration validation, dedicated caller-to-role binding, Windows install/uninstall scripts, an IIS proxy template, safe audit correlation, CI, a reproducible source archive and SHA256 manifest. Original code uses the MIT license; maintainer: **susunola**.
 
 - [Complete delivery ledger and remaining external dependencies](docs/DELIVERY.md)
 - [Native CPM/PSM operations, recovery, maintenance and shared tokens](docs/OPERATIONS.md)

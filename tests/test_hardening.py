@@ -144,6 +144,18 @@ class HardeningTests(unittest.TestCase):
             a = Path(first)/f'psm-tencentcloud-sts-{VERSION}-source.zip'
             b = Path(second)/a.name
             self.assertEqual(a.read_bytes(), b.read_bytes())
+            import json
+            import hashlib
+            bom = Path(first) / 'dependency-sbom.cdx.json'
+            self.assertEqual(bom.read_bytes(), (Path(second) / bom.name).read_bytes())
+            inventory = json.loads(bom.read_text())
+            self.assertEqual(inventory['bomFormat'], 'CycloneDX')
+            self.assertEqual(inventory['metadata']['component']['version'], VERSION)
+            locked = {line.split('==')[0].lower(): line.split('==')[1] for line in (ROOT / 'requirements.lock.txt').read_text().splitlines() if '==' in line}
+            self.assertEqual({c['name'].lower(): c['version'] for c in inventory['components']}, locked)
+            for line in (Path(first) / 'SHA256SUMS').read_text().splitlines():
+                digest, name = line.split('  ')
+                self.assertEqual(digest, hashlib.sha256((Path(first) / name).read_bytes()).hexdigest())
             with ZipFile(a) as archive:
                 names = archive.namelist()
                 self.assertIn('psm-tencentcloud-sts/LICENSE', names)

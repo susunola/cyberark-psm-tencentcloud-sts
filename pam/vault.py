@@ -12,10 +12,19 @@ class VaultError(Exception):
 class Vault:
     """PVWA v10-family REST adapter; no login/MFA bypass or automatic write retries."""
     def __init__(self, api_url, token, ca=True, session=None):
-        parsed = urlsplit(api_url)
-        if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        if not isinstance(api_url, str) or not api_url or len(api_url) > 2048 or any(ord(c) < 33 for c in api_url) or '\\' in api_url:
             raise ValueError('Use an explicit HTTPS PVWA API base URL')
-        if ca is False or not token:
+        try:
+            parsed = urlsplit(api_url)
+            port = parsed.port
+            valid = (parsed.scheme == 'https' and bool(parsed.hostname) and not parsed.username and not parsed.password
+                     and not parsed.query and not parsed.fragment and (port is None or 1 <= port <= 65535)
+                     and parsed.path.rstrip('/').lower().endswith('/passwordvault/api'))
+        except ValueError:
+            valid = False
+        if not valid:
+            raise ValueError('Use an explicit HTTPS PVWA API base URL')
+        if not (ca is True or isinstance(ca, str) and ca.strip()) or not isinstance(token, str) or not 1 <= len(token) <= 16384 or any(ord(c) < 32 or ord(c) == 127 for c in token):
             raise ValueError('TLS verification and an authorized PVWA session are required')
         self.url = api_url.rstrip('/')
         self.token, self.ca = token, ca
@@ -23,6 +32,8 @@ class Vault:
         self.session.trust_env = False
 
     def request(self, method, path, payload=None, *, accept='application/json'):
+        if method not in ('GET', 'POST', 'DELETE') or not isinstance(path, str) or not path.startswith('/') or path.startswith('//') or '#' in path or '\\' in path or any(ord(c) < 33 for c in path):
+            raise ValueError('Invalid PVWA request route')
         try:
             response = self.session.request(method, self.url + path, json=payload,
                 headers={'Authorization': self.token, 'Content-Type': 'application/json', 'Accept': accept},

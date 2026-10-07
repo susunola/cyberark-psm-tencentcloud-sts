@@ -1,6 +1,7 @@
 """Create a reproducible source distribution and SHA256 manifest, excluding secrets."""
 import argparse
 import hashlib
+import json
 from pathlib import Path
 import sys
 from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
@@ -23,10 +24,27 @@ args.out.mkdir(parents=True, exist_ok=True)
 archive = args.out / f'psm-tencentcloud-sts-{VERSION}-source.zip'
 with ZipFile(archive, 'w', compression=ZIP_DEFLATED) as output:
     for path in sorted(files):
+        if path.is_symlink() or not path.resolve().is_relative_to(ROOT):
+            raise ValueError('Source archive refuses symlinks or external paths')
         data = path.read_bytes()
         info = ZipInfo('psm-tencentcloud-sts/' + path.relative_to(ROOT).as_posix(), date_time=(2026, 1, 1, 0, 0, 0))
         info.compress_type = ZIP_DEFLATED
         info.external_attr = 0o100644 << 16
         output.writestr(info, data)
-(args.out / 'SHA256SUMS').write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + '  ' + archive.name + '\n')
+# Inventory describes the locked source dependencies, not installed production hosts.
+components = []
+for line in (ROOT / 'requirements.lock.txt').read_text().splitlines():
+    line = line.strip()
+    if not line or line.startswith('#'):
+        continue
+    name, version = line.split('==')
+    components.append({'type': 'library', 'name': name, 'version': version,
+                       'purl': f'pkg:pypi/{name.lower()}/{version}'})
+bom = {'bomFormat': 'CycloneDX', 'specVersion': '1.5', 'version': 1,
+       'metadata': {'component': {'type': 'application', 'name': 'psm-tencentcloud-sts', 'version': VERSION}},
+       'components': sorted(components, key=lambda c: c['name'].lower())}
+(args.out / 'dependency-sbom.cdx.json').write_text(json.dumps(bom, indent=2) + '\n')
+(args.out / 'SHA256SUMS').write_text(''.join(
+    hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + path.name + '\n'
+    for path in (archive, args.out / 'dependency-sbom.cdx.json')))
 print(archive.name)

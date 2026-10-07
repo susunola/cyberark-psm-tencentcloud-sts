@@ -2,7 +2,7 @@
 
 [English](INSTALLATION-AND-USAGE.md) | **简体中文** · [返回 README](../README.zh-CN.md)
 
-适用源码版本：0.5.1。本文从首次部署到日常操作给出完整流程。目标是通过 CyberArk PVWA 授权，在 PSM 浏览器中使用 Vault 保存的 CAM 密钥登录腾讯云国际站控制台；CVM 客户机连接使用已安装的原生 SSH/RDP 组件。
+适用源码版本：0.5.2。本文从首次部署到日常操作给出完整流程。目标是通过 CyberArk PVWA 授权，在 PSM 浏览器中使用 Vault 保存的 CAM 密钥登录腾讯云国际站控制台；CVM 客户机连接使用已安装的原生 SSH/RDP 组件。
 
 本项目提供桥接服务及管理工具源码，不提供可直接导入的原生平台/CPM ZIP。自动化验证覆盖 Windows/Ubuntu、Python 3.11–3.13，以及真实 Redis 的共享令牌行为；目标 PSM 上的服务运行、腾讯云登录、录屏和审批仍须现场验收。不能把源码测试通过理解为全版本认证。[交付边界](DELIVERY.zh-CN.md)和[验收记录](ACCEPTANCE.zh-CN.md)列明了这些状态。
 
@@ -262,6 +262,8 @@ python scripts/pamctl.py onboard-batch --safe CloudGuests --platform UnixSSH --j
 
 独立身份校验：`python scripts/pamctl.py verify --target-uin 100000000002` 从批准的安全 stdin 接收包含 `secret_id` 和 `secret_key` 的 JSON 对象。它通过国际站身份接口核对调用者 UIN，不证明控制台登录成功；该只读命令不需要 `--apply`。
 
+发现限制为 20 个不重复且全部预校验的区域、1,000 个 CAM 用户、每区域 100 页、单次合计 10,000 个 CVM 实例。重复实例、不完整页或分页中总数变化会令整个命令失败，不返回“成功”的部分结果。库存变化稳定后重新执行只读发现；不承诺一致性快照。`ap-shanghai-fsi` 等后缀通过语法校验，但仍需云端确认账号/服务区域可用性。
+
 ### 7.4 导出与审计
 
 ```text
@@ -381,3 +383,5 @@ Redis 失败时拒绝请求（503），不回退本地令牌。异步副本切�
 临时回调 URL 含临时凭据，Python 不保证内存清零；按组织 PSM 加固基线限制调试工具、剪贴板/文件通道及诊断访问。遇到问题收集时间、版本、账号 ID、请求 ID 和脱敏状态，不分享密钥、Cookie、token 或完整回调链接。
 
 更多资料：[部署说明](DEPLOYMENT.zh-CN.md) · [运维说明](OPERATIONS.zh-CN.md) · [PAM 能力](PAM-CAPABILITIES.zh-CN.md) · [安全策略](../SECURITY.md)
+
+源码质量检查还包括 `python scripts/check_docs.py` 和 `python -m pip check`。打包时在 ZIP/校验清单旁生成 `dependency-sbom.cdx.json`（CycloneDX 1.5），列明锁定源码依赖；不代表生产主机软件清单或已证明无漏洞。

@@ -82,7 +82,7 @@ class DeliveryTests(unittest.TestCase):
         self.assertIn('timestamp',json.loads(event({'event':'http_result'})))
 
     def test_request_window_and_ticket_schema(self):
-        vault=Vault('https://pvwa.invalid/API','FAKE-TOKEN');vault.request=MagicMock()
+        vault=Vault('https://pvwa.invalid/PasswordVault/API','FAKE-TOKEN');vault.request=MagicMock()
         vault.access_request('1_2','Maintenance','PSM-SSH',ticket_id='CHG1',ticket_system='ServiceNow',from_date=100,to_date=200)
         payload=vault.request.call_args.args[2]
         self.assertEqual(payload['TicketID'],'CHG1');self.assertEqual(payload['FromDate'],100)
@@ -92,7 +92,7 @@ class DeliveryTests(unittest.TestCase):
         vault.request.assert_not_called()
 
     def test_request_and_session_detail_endpoints(self):
-        vault=Vault('https://pvwa.invalid/API','FAKE-TOKEN');vault.request=MagicMock()
+        vault=Vault('https://pvwa.invalid/PasswordVault/API','FAKE-TOKEN');vault.request=MagicMock()
         vault.session_details('session-123','activities');vault.request.assert_called_with('GET','/LiveSessions/session-123/activities')
         vault.request_details('request-123',True);vault.request.assert_called_with('GET','/IncomingRequests/request-123')
         vault.cancel_request('request-123');vault.request.assert_called_with('DELETE','/MyRequests/request-123')

@@ -3,7 +3,7 @@ import copy
 import re
 import json
 from pathlib import Path
-from federation import validate_destination
+from federation import validate_destination, validate_region
 
 
 def load_settings(path):
@@ -48,6 +48,5 @@ def validate_settings(settings):
             if sid in seen_ids:
                 raise ValueError('Each caller SecretId must belong to one profile only')
             seen_ids.add(sid)
-        if not isinstance(p['region'], str) or not re.fullmatch(r'[a-z]+-[a-z]+', p['region']):
-            raise ValueError('Invalid STS region')
+        validate_region(p['region'])
     return copy.deepcopy(settings)

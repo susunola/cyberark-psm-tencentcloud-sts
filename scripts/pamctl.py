@@ -26,7 +26,7 @@ def cloud():
     return Cloud(os.environ['TENCENTCLOUD_SECRET_ID'], os.environ['TENCENTCLOUD_SECRET_KEY'])
 
 
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('capabilities')
@@ -89,7 +89,11 @@ def main():
     final.add_argument('--apply', action='store_true')
     restore = commands.add_parser('restore-old'); restore.add_argument('--ticket', required=True)
     restore.add_argument('--apply', action='store_true')
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
     if args.command in ('prepare', 'finalize', 'restore-old', 'onboard', 'session', 'request', 'decision', 'cpm', 'connect', 'recover-ticket', 'playback', 'onboard-batch', 'cancel-request') and not args.apply:
         print(json.dumps({'status': 'no-write', 'operation': args.command, 'next': 'Review configuration, then explicitly supply --apply'}))
         return

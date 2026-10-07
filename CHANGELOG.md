@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.2 — 2026-10-07
+
+- Bound CAM/CVM discovery to 20 unique prevalidated regions, 1,000 users, 100 pages per region and 10,000 instances overall; reject repeated IDs, invalid pages and changing totals rather than return partial inventory.
+- Accept syntactically valid region suffixes while leaving availability to cloud validation; prevalidate key mutations and identity targets before remote calls.
+- Reject malformed PVWA API bases, control-character tokens, false-equivalent TLS settings and invalid routes before transport.
+- Add offline documentation/CLI validation and dependency consistency checks to all CI jobs.
+- Include a deterministic CycloneDX dependency inventory beside source distributions; this is not a vulnerability scan or deployed-host inventory.
+- Add inventory/transport failure regression tests without claiming live PAM acceptance.
+
 ## 0.5.1 — 2026-10-06
 
 - Target Tencent Cloud international: sign the international role callback, allow only the international console destination and update CSP.
