@@ -27,6 +27,7 @@ from security import (
 from validate import (
     MAX_AUDIT_LABEL_LEN,
     MAX_IDENTITY_LEN,
+    MAX_PROFILE_NAME_LEN,
     MAX_REQUEST_BODY_BYTES,
     MAX_SECRET_KEY_LEN,
     MIN_PROXY_KEY_LEN,
@@ -35,14 +36,14 @@ from validate import (
 )
 from version import VERSION
 
-FORM = '''<!doctype html><html lang="en"><meta charset="utf-8"><title>Tencent Cloud role connection</title>
+FORM = f"""<!doctype html><html lang="en"><meta charset="utf-8"><title>Tencent Cloud role connection</title>
 <body><h1>Tencent Cloud role connection</h1><form method="post" action="/connect" autocomplete="off">
-<input type="hidden" name="csrf" value="{{ csrf }}">
-<label>SecretId <input id="secret_id" name="secret_id" required maxlength="256"></label><br>
-<label>SecretKey <input id="secret_key" name="secret_key" type="password" required maxlength="512"></label><br>
-<label>Role profile <input id="profile" name="profile" required maxlength="80"></label><br>
-<label>Audit label <input id="audit_label" name="audit_label" required maxlength="256"></label><br>
-<button id="connect_button" type="submit">Connect</button></form></body></html>'''
+<input type="hidden" name="csrf" value="{{{{ csrf }}}}">
+<label>SecretId <input id="secret_id" name="secret_id" required maxlength="{MAX_IDENTITY_LEN}"></label><br>
+<label>SecretKey <input id="secret_key" name="secret_key" type="password" required maxlength="{MAX_SECRET_KEY_LEN}"></label><br>
+<label>Role profile <input id="profile" name="profile" required maxlength="{MAX_PROFILE_NAME_LEN}"></label><br>
+<label>Audit label <input id="audit_label" name="audit_label" required maxlength="{MAX_AUDIT_LABEL_LEN}"></label><br>
+<button id="connect_button" type="submit">Connect</button></form></body></html>"""
 
 CSP = (
     "default-src 'none'; form-action 'self' "
@@ -118,7 +119,10 @@ def create_app(
     identity_capacity: int | None = None,
 ) -> Flask:
     if len(proxy_key) < MIN_PROXY_KEY_LEN or len(session_key) < MIN_SESSION_KEY_LEN:
-        raise ValueError(f'Proxy and session keys must each be at least {MIN_PROXY_KEY_LEN} characters')
+        raise ValueError(
+            f'Proxy key must be at least {MIN_PROXY_KEY_LEN} characters; '
+            f'session key at least {MIN_SESSION_KEY_LEN}'
+        )
     if proxy_key == session_key:
         raise ValueError('Use independent proxy and session keys')
     if type(issuance_slots) is not int or not 1 <= issuance_slots <= MAX_ISSUANCE_SLOTS:

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from federation import MIN_CREDENTIAL_MARGIN_SECONDS, validate_destination, validate_region
-from validate import MAX_CONFIG_BYTES, is_identifier, unique_json_object
+from validate import MAX_CONFIG_BYTES, MAX_PROFILE_NAME_LEN, is_identifier, unique_json_object
 
 
 def load_settings(path: str | Path) -> dict[str, Any]:
@@ -31,7 +31,7 @@ def validate_settings(settings: Any) -> dict[str, Any]:
     seen_ids: set[str] = set()
     required = {'role_arn', 'allowed_secret_ids', 'destination', 'duration_seconds', 'region'}
     for name, p in profiles.items():
-        if not is_identifier(name, 1, 80):
+        if not is_identifier(name, 1, MAX_PROFILE_NAME_LEN):
             raise ValueError('Invalid profile name')
         if not isinstance(p, dict) or set(p) != required:
             raise ValueError('Invalid profile fields')

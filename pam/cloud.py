@@ -18,7 +18,7 @@ KEY_STATUSES = ('Active', 'Inactive')
 # Vendor-controlled strings are echoed into operator output; bound and sanitise them.
 MAX_VENDOR_TEXT = 1024
 VENDOR_HOST_PATTERN = re.compile(r'[0-9A-Fa-f:.]{1,64}')
-KEY_ID_PATTERN = re.compile(r'[A-Za-z0-9_-]{1,256}')
+KEY_ID_PATTERN = re.compile(rf'[A-Za-z0-9_-]{{1,{MAX_CREDENTIAL_ID_LEN}}}')
 MAX_CAM_KEYS = 10
 # CAM's ListUsers has no pagination fields in v20190116 and returns every sub-user
 # in one response, so this is a bound on an unbounded reply rather than a page size.
