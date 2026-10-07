@@ -102,6 +102,18 @@ MUTATIONS: tuple[tuple[str, str, str, str], ...] = (
         "        if identity != identity.strip() or ',' in identity:",
         "        if False:",
     ),
+    (
+        "bridge: the admission slot count is bounded",
+        "app.py",
+        "    if type(issuance_slots) is not int or not 1 <= issuance_slots <= MAX_ISSUANCE_SLOTS:",
+        "    if False:",
+    ),
+    (
+        "security: the per-identity token bound is validated",
+        "security.py",
+        "    return 1 <= identity_capacity <= capacity",
+        "    return True",
+    ),
 )
 
 

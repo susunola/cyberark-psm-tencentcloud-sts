@@ -20,7 +20,7 @@ from urllib.parse import parse_qs, urlsplit
 from flask import Flask
 from werkzeug.datastructures import MultiDict
 
-from app import create_app, main, normalize_audit_label
+from app import DEFAULT_ISSUANCE_SLOTS, DEFAULT_ISSUANCE_WAIT_SECONDS, create_app, main, normalize_audit_label
 from federation import FederationError, login_url, validate_destination
 from pam.files import private_output, read_json, save_json
 from pam.planning import cvm_plan
@@ -244,6 +244,12 @@ class ConnectFormTests(unittest.TestCase):
 
 
 class StartupTests(unittest.TestCase):
+    def setUp(self):
+        # main() calls logging.basicConfig(); leaving the root logger configured makes
+        # every later test print its audit events to stderr and buries real failures.
+        patch('app.logging.basicConfig').start()
+        self.addCleanup(patch.stopall)
+
     def test_short_proxy_or_session_key_is_rejected(self):
         for proxy_key, session_key in (('short-key', SESSION_KEY), (PROXY_KEY, 'short-key')):
             with self.subTest(proxy_key=proxy_key[:9]), self.assertRaisesRegex(ValueError, '32'):
@@ -261,6 +267,75 @@ class StartupTests(unittest.TestCase):
         # No connect form, and therefore no CSRF token, is handed out on rejection.
         self.assertNotIn('name="csrf"', response.text)
         store.issue.assert_called_once_with('PSMConnect')
+
+    def test_admission_and_identity_bounds_come_from_the_environment(self):
+        """The two deployment-dependent numbers must be settable without a rebuild."""
+        captured = {}
+
+        def capture(settings, **kwargs):
+            captured.update(kwargs)
+            return MagicMock()
+
+        environment = {
+            'PSM_TC_CONFIG': 'settings.json',
+            'PSM_TC_PROXY_KEY': PROXY_KEY,
+            'PSM_TC_SESSION_KEY': SESSION_KEY,
+            'PSM_TC_ISSUANCE_SLOTS': '8',
+            'PSM_TC_ISSUANCE_WAIT_SECONDS': '12.5',
+            'PSM_TC_IDENTITY_CAPACITY': '32',
+        }
+        with (
+            patch('app.shared_environment', return_value=environment),
+            patch('app.load_settings', return_value=SETTINGS),
+            patch('app.configured_token_store', return_value=MagicMock()),
+            patch('app.create_app', side_effect=capture),
+            patch('runtime.make_server', return_value=MagicMock()),
+        ):
+            main()
+        self.assertEqual(captured['issuance_slots'], 8)
+        self.assertEqual(captured['issuance_wait'], 12.5)
+        self.assertEqual(captured['identity_capacity'], 32)
+
+    def test_unset_or_invalid_admission_overrides_behave_predictably(self):
+        """Unset means 'use the default'; a malformed value must fail startup, sanitized."""
+        captured = {}
+
+        def capture(settings, **kwargs):
+            captured.update(kwargs)
+            return MagicMock()
+
+        base = {
+            'PSM_TC_CONFIG': 'settings.json',
+            'PSM_TC_PROXY_KEY': PROXY_KEY,
+            'PSM_TC_SESSION_KEY': SESSION_KEY,
+        }
+        with (
+            patch('app.shared_environment', return_value=dict(base)),
+            patch('app.load_settings', return_value=SETTINGS),
+            patch('app.configured_token_store', return_value=MagicMock()),
+            patch('app.create_app', side_effect=capture),
+            patch('runtime.make_server', return_value=MagicMock()),
+        ):
+            main()
+        self.assertEqual(captured['issuance_slots'], DEFAULT_ISSUANCE_SLOTS)
+        self.assertEqual(captured['issuance_wait'], DEFAULT_ISSUANCE_WAIT_SECONDS)
+        self.assertIsNone(captured['identity_capacity'])
+
+        for name, value in (
+            ('PSM_TC_ISSUANCE_SLOTS', 'many'),
+            ('PSM_TC_ISSUANCE_WAIT_SECONDS', 'soon'),
+            ('PSM_TC_IDENTITY_CAPACITY', 'lots'),
+        ):
+            with (
+                self.subTest(override=f'{name}={value}'),
+                patch('app.shared_environment', return_value={**base, name: value}),
+                patch('app.load_settings', return_value=SETTINGS),
+                patch('app.configured_token_store', return_value=MagicMock()),
+                self.assertRaises(SystemExit) as raised,
+            ):
+                main()
+            self.assertEqual(str(raised.exception), STARTUP_MESSAGE)
+            self.assertNotIn(value, str(raised.exception))
 
     def test_startup_failure_hides_the_cause_and_its_values(self):
         for error in (RuntimeError('FAKE-ENVIRONMENT-SECRET'), ValueError('FAKE-CONFIG-SECRET')):

@@ -154,6 +154,7 @@ The proxy must meet all these requirements:
 3. Forward paths and POST forms to the fixed backend `http://127.0.0.1:8765` while preserving browser-side HTTPS. The bridge validates the actual TCP peer as loopback; do not substitute the remote client address.
 4. Restrict proxy key configuration access to administrators and the proxy service, and restrict site access to controlled hosts. Disable tracing of request bodies, cookies, response Location headers, and complete login URLs. Do not retain sensitive material in logs.
 5. Reject direct backend requests, missing proxy keys, unauthenticated requests, and forged identity headers. Correct proxy configuration is the authentication boundary; localhost alone is insufficient.
+6. **Give every person their own Windows identity** (a PSM shadow user per human). The previous item notes that the authenticated account is usually a PSM session account; that shared shape is exactly what this item rules out. The bridge binds pending form tokens to `X-PSM-Authenticated-User` and records it in the audit log, so a service account shared by all sessions lets concurrent users evict each other's pending token and makes audit attribution impossible. This is a deployment prerequisite, not an acceptance item. If a shared identity is unavoidable, raise `PSM_TC_IDENTITY_CAPACITY` above realistic concurrency and accept that the audit log cannot distinguish users.
 
 The package provides a Windows service installer and an IIS rewrite template. IIS authentication, ARR/URL Rewrite installation and certificates still require environment-specific configuration. Complete them before production use. Do not enable Flask debug mode.
 
@@ -173,6 +174,18 @@ The package provides a Windows service installer and an IIS rewrite template. II
 Tencent Cloud uses `roleAccessCallback`, rather than AWS's `getSigninToken`. The signing string contains action, nonce, secretId, and timestamp. It is signed with the temporary SecretKey using HMAC-SHA256 and Base64 encoding. The temporary token, signature, and destination are URL-encoded.
 
 The long-term SecretKey is used in the HTTPS form submission and server memory, not files, logs, or command-line arguments. Python cannot guarantee memory zeroization. The callback URL **contains temporary credentials** and may be readable by browsers, administrators, or diagnostic tools. Apply your PSM Web baseline to debugging tools and logs, and test user-accessible extraction paths. This implementation does not guarantee that credentials are impossible to extract.
+
+## Issuance admission and identity bounds
+
+Two deployment-dependent numbers are configurable without a rebuild:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PSM_TC_ISSUANCE_SLOTS` | `3` (one worker thread fewer than `runtime.THREADS`) | Concurrent STS calls per node. A slot is reserved before the single-use token is consumed, so a queued submission never burns a token. |
+| `PSM_TC_ISSUANCE_WAIT_SECONDS` | `5` | How long a submission waits for a slot before the bridge answers `503` with `Retry-After`. The wait is bounded because it holds a worker thread. |
+| `PSM_TC_IDENTITY_CAPACITY` | `3` per identity | Pending form tokens one identity may hold. The default assumes one Windows identity per person; see the proxy prerequisites. |
+
+Submissions queue for up to `PSM_TC_ISSUANCE_WAIT_SECONDS` and then receive `503` with `Retry-After`. PSM's form submission does not retry on its own, so a burst that exceeds both the slot count and the wait will still surface an error page; size the slots against your peak concurrent logins.
 
 The requested STS duration is 300 seconds. Console cookie lifetime and PSM timeouts must be validated separately. Closing a PSM session does not revoke issued credentials. The package does not implement cloud session revocation or forced global logout.
 

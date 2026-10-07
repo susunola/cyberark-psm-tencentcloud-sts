@@ -51,7 +51,13 @@ class TokenTests(unittest.TestCase):
             finish.wait(timeout=5)
             return {"TmpSecretId": "AKID-TEST", "TmpSecretKey": "fake-key", "Token": "fake-token"}
 
-        app = create_app(settings, proxy_key="p" * 32, session_key="s" * 32, sts=slow_sts)
+        # Slots are stated explicitly so this checks the overload contract rather
+        # than whatever the default happens to be; no queue, so the third request
+        # is refused immediately.
+        app = create_app(
+            settings, proxy_key="p" * 32, session_key="s" * 32, sts=slow_sts,
+            issuance_slots=2, issuance_wait=0,
+        )
         headers = {"X-PSM-Bridge-Key": "p" * 32, "X-PSM-Authenticated-User": "alice"}
 
         def connect():

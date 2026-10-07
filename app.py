@@ -17,7 +17,12 @@ from werkzeug.exceptions import HTTPException
 from configuration import load_settings, validate_settings
 from federation import assume_role, login_url
 from pam.audit import event as audit_event
-from security import TokenStore, TokenStoreError, configured_token_store, shared_environment
+from security import (
+    TokenStore,
+    TokenStoreError,
+    configured_token_store,
+    shared_environment,
+)
 from version import VERSION
 
 FORM = '''<!doctype html><html lang="en"><meta charset="utf-8"><title>Tencent Cloud role connection</title>
@@ -38,6 +43,18 @@ CSP = (
 StsCallable = Callable[[str, str, str, str, int, str], Mapping[str, str]]
 TokenStoreLike = Any
 
+# Issuance admission. One worker thread is deliberately left free for health
+# checks, so the default slot count tracks runtime.THREADS; the relationship is
+# asserted by tests/test_bridge_admission.py so the two cannot drift apart.
+DEFAULT_ISSUANCE_SLOTS = 3
+MAX_ISSUANCE_SLOTS = 64
+# How long a submission may wait for a slot before the bridge reports busy. The
+# wait is bounded because a WSGI thread is held throughout, and PSM's form
+# submission does not retry on its own.
+DEFAULT_ISSUANCE_WAIT_SECONDS = 5.0
+MAX_ISSUANCE_WAIT_SECONDS = 60.0
+BUSY_RETRY_AFTER = '5'
+
 
 def normalize_audit_label(label: str) -> str:
     if not isinstance(label, str) or not 2 <= len(label) <= 256 or any(ord(c) < 32 for c in label):
@@ -55,15 +72,24 @@ def create_app(
     session_key: str,
     sts: StsCallable = assume_role,
     token_store: TokenStoreLike | None = None,
+    issuance_slots: int = DEFAULT_ISSUANCE_SLOTS,
+    issuance_wait: float = DEFAULT_ISSUANCE_WAIT_SECONDS,
+    identity_capacity: int | None = None,
 ) -> Flask:
     if len(proxy_key) < 32 or len(session_key) < 32:
         raise ValueError('Proxy and session keys must each be at least 32 characters')
     if proxy_key == session_key:
         raise ValueError('Use independent proxy and session keys')
+    if type(issuance_slots) is not int or not 1 <= issuance_slots <= MAX_ISSUANCE_SLOTS:
+        raise ValueError(f'Issuance slots must be 1..{MAX_ISSUANCE_SLOTS}')
+    if isinstance(issuance_wait, bool) or not isinstance(issuance_wait, (int, float)):
+        raise ValueError('Issuance wait must be a number of seconds')
+    if not 0 <= issuance_wait <= MAX_ISSUANCE_WAIT_SECONDS:
+        raise ValueError(f'Issuance wait must be 0..{MAX_ISSUANCE_WAIT_SECONDS} seconds')
     profiles = validate_settings(settings)['profiles']
     app = Flask(__name__)
-    tokens: TokenStoreLike = token_store if token_store is not None else TokenStore()
-    issuance_slots = threading.BoundedSemaphore(2)
+    tokens: TokenStoreLike = token_store if token_store is not None else TokenStore(identity_capacity=identity_capacity)
+    slots = threading.BoundedSemaphore(issuance_slots)
     logger = logging.getLogger('psm_tencent.audit')
     app.config.update(
         SECRET_KEY=session_key,
@@ -159,8 +185,11 @@ def create_app(
         name = f'psm-{label}-{g.request_id}'
         # Reserve the slot before consuming: returning 503 after burning the token
         # would force a form reload and re-entry of the SecretKey for nothing.
-        if not issuance_slots.acquire(blocking=False):
-            return 'Connection service busy. Start a new connection later.', 503, {'Retry-After': '5'}
+        # The wait is bounded so a slow STS cannot hold every worker thread
+        # indefinitely; PSM's form submission does not retry by itself, so a short
+        # queue absorbs normal shift-change bursts instead of failing them.
+        if not slots.acquire(timeout=issuance_wait):
+            return 'Connection service busy. Start a new connection later.', 503, {'Retry-After': BUSY_RETRY_AFTER}
         try:
             session.pop('csrf', None)
             if not tokens.consume(csrf, request.headers['X-PSM-Authenticated-User']):
@@ -174,7 +203,7 @@ def create_app(
             # Never allow exception text/tracebacks to include temporary or long-term secrets.
             return f'Tencent Cloud connection failed. Reference: {g.request_id}', 502
         finally:
-            issuance_slots.release()
+            slots.release()
             key = None
         session.clear()
         logger.info(audit_event({
@@ -190,6 +219,38 @@ def create_app(
     return app
 
 
+def _environment_int(environment: Mapping[str, str], name: str, default: int) -> int:
+    """Read an integer override, falling back to the documented default."""
+    raw = environment.get(name, '')
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f'{name} must be an integer') from None
+
+
+def _environment_optional_int(environment: Mapping[str, str], name: str) -> int | None:
+    """Read an optional integer override; None leaves the decision to the store."""
+    raw = environment.get(name, '')
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f'{name} must be an integer') from None
+
+
+def _environment_float(environment: Mapping[str, str], name: str, default: float) -> float:
+    raw = environment.get(name, '')
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f'{name} must be a number of seconds') from None
+
+
 def main() -> None:
     from runtime import make_server
     logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -201,6 +262,9 @@ def main() -> None:
             proxy_key=environment['PSM_TC_PROXY_KEY'],
             session_key=environment['PSM_TC_SESSION_KEY'],
             token_store=configured_token_store(environment),
+            issuance_slots=_environment_int(environment, 'PSM_TC_ISSUANCE_SLOTS', DEFAULT_ISSUANCE_SLOTS),
+            issuance_wait=_environment_float(environment, 'PSM_TC_ISSUANCE_WAIT_SECONDS', DEFAULT_ISSUANCE_WAIT_SECONDS),
+            identity_capacity=_environment_optional_int(environment, 'PSM_TC_IDENTITY_CAPACITY'),
         )
     except Exception:  # noqa: BLE001 - never forward error text
         raise SystemExit('Bridge startup configuration invalid. Check service environment and settings.') from None
