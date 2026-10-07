@@ -61,6 +61,10 @@ text, not execution. Their runtime behaviour is an acceptance item, not a test.
 `scripts/ci/` holds the statements the `windows-installer` job runs, one file per
 step, so those are parsed even though only a Windows host can execute them.
 
+### Measure the admission queue
+
+`python scripts/load_check.py` starts the real WSGI runtime with a slow STS and fires concurrent logins over loopback sockets, so a change to the admission queue can be checked against a number instead of an argument. It needs no credentials and no Redis, and takes about five seconds. Give each caller its own identity - `--callers` does that - because the per-identity pending-token bound, not the queue, is what refuses a shared one. Use `--wait 0` for the pre-queue comparison.
+
 ### Run the Redis integration suite locally
 
 The shared-token backend runs a Lua script, and the entire integration suite is

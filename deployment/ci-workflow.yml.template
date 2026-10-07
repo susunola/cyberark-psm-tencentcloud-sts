@@ -88,6 +88,9 @@ jobs:
       - name: The installed service answers an authenticated readiness probe
         shell: pwsh
         run: ./scripts/ci/assert-readiness-probe.ps1
+      - name: A tampered form is refused and recorded without reaching the cloud
+        shell: pwsh
+        run: ./scripts/ci/assert-tampered-form-refused.ps1
       - name: Uninstall keeps the files and stops the service
         shell: pwsh
         run: ./scripts/ci/assert-uninstall-preserves-files.ps1
