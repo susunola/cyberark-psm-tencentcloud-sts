@@ -4,10 +4,11 @@ import sys
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
-from pam.lifecycle import prepare, finalize, restore_old, LifecycleError
-from pam.vault import Vault, VaultError
-from pam.planning import cvm_plan
+
 from pam.cloud import Cloud
+from pam.lifecycle import LifecycleError, finalize, prepare, restore_old
+from pam.planning import cvm_plan
+from pam.vault import Vault, VaultError
 
 
 class LifecycleTests(unittest.TestCase):
@@ -141,7 +142,7 @@ class LifecycleTests(unittest.TestCase):
     def test_cli_write_defaults_to_no_write(self):
         root=Path(__file__).resolve().parents[1]
         result=subprocess.run([sys.executable,str(root/'scripts/pamctl.py'),'prepare','--old-account','old-account',
-            '--target-uin','123','--profile','readonly','--ticket','unused.json'],capture_output=True,text=True)
+            '--target-uin','123','--profile','readonly','--ticket','unused.json'],capture_output=True,text=True,check=False)
         self.assertEqual(result.returncode,0);self.assertIn('no-write',result.stdout)
 
 

@@ -8,6 +8,12 @@
 - Add offline documentation/CLI validation and dependency consistency checks to all CI jobs.
 - Include a deterministic CycloneDX dependency inventory beside source distributions; this is not a vulnerability scan or deployed-host inventory.
 - Add inventory/transport failure regression tests without claiming live PAM acceptance.
+- Raise code quality to a strict, CI-enforced baseline: add `pyproject.toml` with ruff, mypy (disallow untyped defs) and coverage configuration.
+- Add complete type annotations across `app`, `configuration`, `federation`, `runtime`, `security`, `version` and all `pam` modules.
+- Fix TokenStore clock binding so tests can patch `time.monotonic`; keep fail-closed secret-redaction behavior on every broad exception (documented `noqa: BLE001`).
+- Replace `os.replace` with `Path.replace`, add explicit `check=` on `subprocess.run`, convert `dict()` calls to literals and sort imports.
+- Add regression tests for configuration/federation/security/app failure paths; unit coverage for core modules 89–100% (overall 84%).
+- CI now runs ruff + mypy + coverage (`--fail-under=80`) on every push in addition to the existing OS/Python matrix and Redis job.
 
 ## 0.5.1 — 2026-10-06
 

@@ -1,12 +1,11 @@
 import copy
-import json
-from pathlib import Path
 import re
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 from xml.etree import ElementTree
 
@@ -144,8 +143,8 @@ class HardeningTests(unittest.TestCase):
             a = Path(first)/f'psm-tencentcloud-sts-{VERSION}-source.zip'
             b = Path(second)/a.name
             self.assertEqual(a.read_bytes(), b.read_bytes())
-            import json
             import hashlib
+            import json
             bom = Path(first) / 'dependency-sbom.cdx.json'
             self.assertEqual(bom.read_bytes(), (Path(second) / bom.name).read_bytes())
             inventory = json.loads(bom.read_text())

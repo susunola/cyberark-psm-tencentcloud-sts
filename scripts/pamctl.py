@@ -2,20 +2,20 @@
 import argparse
 import json
 import os
-from pathlib import Path
 import sys
 import uuid
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from configuration import load_settings
-from pam.cloud import Cloud
-from pam.vault import Vault
-from pam.lifecycle import Ticket, prepare, finalize, restore_old, recover_ticket
-from pam.planning import cvm_plan
-from pam.files import read_json, private_output, save_json
-from pam.onboarding import validate_account
-from pam.delivery import export_records, append_record, onboard_batch, preflight
 from pam.audit import summarize
+from pam.cloud import Cloud
+from pam.delivery import append_record, export_records, onboard_batch, preflight
+from pam.files import private_output, read_json, save_json
+from pam.lifecycle import Ticket, finalize, prepare, recover_ticket, restore_old
+from pam.onboarding import validate_account
+from pam.planning import cvm_plan
+from pam.vault import Vault
 
 
 def vault():
@@ -93,7 +93,8 @@ def build_parser():
 
 
 def main():
-    args = build_parser().parse_args()
+    parser = build_parser()
+    args = parser.parse_args()
     if args.command in ('prepare', 'finalize', 'restore-old', 'onboard', 'session', 'request', 'decision', 'cpm', 'connect', 'recover-ticket', 'playback', 'onboard-batch', 'cancel-request') and not args.apply:
         print(json.dumps({'status': 'no-write', 'operation': args.command, 'next': 'Review configuration, then explicitly supply --apply'}))
         return
@@ -176,13 +177,13 @@ def main():
                                    'old_account': args.old_account, 'profile': args.profile})
             try:
                 ticket = prepare(cloud(), vault(), args.old_account, args.target_uin, args.profile, operation)
-            except Exception:
+            except Exception:  # noqa: BLE001 - never forward error text
                 raise RuntimeError('Preparation incomplete. Inspect reserved journal and cloud/Vault inventory; do not retry blindly.') from None
             # Atomic same-directory replacement; the journal never contains a SecretKey.
             temporary = path.with_name(path.name + '.tmp')
             with private_output(temporary) as stream:
                 save_json(stream, ticket.public())
-            os.replace(temporary, path)
+            Path(temporary).replace(path)
             result = {'status': 'prepared-old-key-retained', **ticket.public()}
         else:
             ticket = Ticket(**read_json(args.ticket))
@@ -190,7 +191,7 @@ def main():
                 result = finalize(cloud(), vault(), ticket, load_settings(args.settings), confirmed_cutover=args.confirm_psm_cutover)
             else:
                 result = restore_old(cloud(), ticket.target_uin, ticket.old_secret_id)
-    except Exception:
+    except Exception:  # noqa: BLE001 - never forward error text
         parser.exit(2, 'Operation failed. No secrets or raw API errors are emitted. Reconcile uncertain write outcomes before retry.\n')
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if args.command == 'preflight' and not result['scope_binding_ready']:

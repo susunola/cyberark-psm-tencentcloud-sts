@@ -1,11 +1,12 @@
 import copy
 import io
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock
-from pam.files import read_json, private_output
-from pam.lifecycle import recover_ticket, LifecycleError
+
+from pam.files import private_output, read_json
+from pam.lifecycle import LifecycleError, recover_ticket
 from pam.maintenance import run, validate_jobs
 
 

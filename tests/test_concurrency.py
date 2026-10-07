@@ -1,7 +1,8 @@
-from concurrent.futures import ThreadPoolExecutor
 import re
 import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+
 from app import create_app
 from security import TokenStore
 

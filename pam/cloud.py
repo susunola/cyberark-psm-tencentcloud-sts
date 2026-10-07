@@ -1,62 +1,79 @@
+"""Tencent Cloud CAM/CVM administrative adapter. No credential logging."""
+from __future__ import annotations
+
 import re
+from typing import Any
+
 from federation import FederationError, validate_region
 
 
-def uin(value):
-    if not re.fullmatch(r'[0-9]{1,20}', str(value)) or int(value) <= 0:
+def uin(value: object) -> int:
+    if not re.fullmatch(r'[0-9]{1,20}', str(value)) or int(str(value)) <= 0:
         raise ValueError('Explicit positive target UIN required')
-    return int(value)
+    return int(str(value))
 
 
 class Cloud:
-    def __init__(self, secret_id, secret_key, region='ap-singapore'):
+    def __init__(self, secret_id: str, secret_key: str, region: str = 'ap-singapore') -> None:
+        from tencentcloud.cam.v20190116.cam_client import CamClient
         from tencentcloud.common.credential import Credential
         from tencentcloud.common.profile.client_profile import ClientProfile
         from tencentcloud.common.profile.http_profile import HttpProfile
-        from tencentcloud.cam.v20190116.cam_client import CamClient
+
         validate_region(region)
         self.credential = Credential(secret_id, secret_key)
         self.region = region
         self.cam = CamClient(self.credential, region, ClientProfile(httpProfile=HttpProfile(endpoint='cam.intl.tencentcloudapi.com', reqTimeout=15)))
 
     @staticmethod
-    def call(function, request):
+    def call(function: Any, request: Any) -> Any:
         try:
             return function(request)
-        except Exception:
+        except Exception:  # noqa: BLE001 - never forward error text
+            # SDK error text may echo request or credential material; never forward it.
             raise FederationError('Cloud operation failed; inspect permissions and sanitized audit records') from None
 
-    def keys(self, target):
+    def keys(self, target: object) -> list[dict[str, str]]:
         from tencentcloud.cam.v20190116.models import ListAccessKeysRequest
-        req = ListAccessKeysRequest(); req.TargetUin = uin(target)
+
+        req = ListAccessKeysRequest()
+        req.TargetUin = uin(target)
         result = self.call(self.cam.ListAccessKeys, req)
         return [{'id': k.AccessKeyId, 'status': k.Status, 'description': k.Description or ''} for k in result.AccessKeys or []]
 
-    def create_key(self, target, operation):
+    def create_key(self, target: object, operation: str) -> tuple[str, str]:
         if not isinstance(operation, str) or not re.fullmatch(r'[a-f0-9]{32}', operation):
             raise ValueError('Invalid rotation operation')
         self.assert_subuser(target)
         from tencentcloud.cam.v20190116.models import CreateAccessKeyRequest
-        req = CreateAccessKeyRequest(); req.TargetUin = uin(target); req.Description = 'psm-rotation:' + operation
+
+        req = CreateAccessKeyRequest()
+        req.TargetUin = uin(target)
+        req.Description = 'psm-rotation:' + operation
         key = self.call(self.cam.CreateAccessKey, req).AccessKey
         if not key or not key.AccessKeyId or not key.SecretAccessKey:
             raise FederationError('Invalid key creation response; reconcile cloud inventory before retry')
         return key.AccessKeyId, key.SecretAccessKey
 
-    def set_key_status(self, target, secret_id, status):
+    def set_key_status(self, target: object, secret_id: str, status: str) -> None:
         if status not in ('Active', 'Inactive') or not isinstance(secret_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,256}', secret_id):
             raise ValueError('Invalid key transition')
         self.assert_subuser(target)
         from tencentcloud.cam.v20190116.models import UpdateAccessKeyRequest
-        req = UpdateAccessKeyRequest(); req.TargetUin = uin(target); req.AccessKeyId = secret_id; req.Status = status
+
+        req = UpdateAccessKeyRequest()
+        req.TargetUin = uin(target)
+        req.AccessKeyId = secret_id
+        req.Status = status
         self.call(self.cam.UpdateAccessKey, req)
 
-    def users(self):
+    def users(self) -> list[Any]:
         from tencentcloud.cam.v20190116.models import ListUsersRequest
+
         users = self.call(self.cam.ListUsers, ListUsersRequest()).Data
         if not isinstance(users, list) or len(users) > 1000:
             raise FederationError('Invalid or oversized CAM inventory')
-        seen = set()
+        seen: set[str] = set()
         for user in users:
             target = str(uin(user.Uin))
             if target in seen:
@@ -64,18 +81,19 @@ class Cloud:
             seen.add(target)
         return users
 
-    def assert_subuser(self, target):
+    def assert_subuser(self, target: object) -> None:
         target = str(uin(target))
         users = self.users()
         if target not in {str(uin(user.Uin)) for user in users}:
             raise FederationError('Target must be a listed CAM sub-user; root keys are not managed')
 
-    def verify(self, secret_id, secret_key, target):
+    def verify(self, secret_id: str, secret_key: str, target: object) -> bool:
         target = str(uin(target))
         from tencentcloud.common.credential import Credential
         from tencentcloud.common.profile.client_profile import ClientProfile
         from tencentcloud.common.profile.http_profile import HttpProfile
-        from tencentcloud.sts.v20180813 import sts_client, models
+        from tencentcloud.sts.v20180813 import models, sts_client
+
         client = sts_client.StsClient(Credential(secret_id, secret_key), self.region,
             ClientProfile(httpProfile=HttpProfile(endpoint='sts.intl.tencentcloudapi.com', reqTimeout=15)))
         identity = self.call(client.GetCallerIdentity, models.GetCallerIdentityRequest())
@@ -83,7 +101,7 @@ class Cloud:
             raise FederationError('Credential belongs to a different identity')
         return True
 
-    def discover(self, regions):
+    def discover(self, regions: list[str] | tuple[str, ...]) -> dict[str, list[dict[str, Any]]]:
         # Preflight every region before any inventory request.
         if not isinstance(regions, (list, tuple)) or not 1 <= len(regions) <= 20:
             raise ValueError('Supply 1..20 explicit regions')
@@ -91,11 +109,12 @@ class Cloud:
             validate_region(region)
         if len(set(regions)) != len(regions):
             raise ValueError('Duplicate inventory region')
-        from tencentcloud.cvm.v20170312 import cvm_client, models
         from tencentcloud.common.profile.client_profile import ClientProfile
         from tencentcloud.common.profile.http_profile import HttpProfile
+        from tencentcloud.cvm.v20170312 import cvm_client, models
+
         users = self.users()
-        inventory = {'users': [], 'instances': []}
+        inventory: dict[str, list[dict[str, Any]]] = {'users': [], 'instances': []}
         for user in users:
             inventory['users'].append({'uin': str(user.Uin), 'name': user.Name,
                 'console_login': user.ConsoleLogin, 'keys': self.keys(user.Uin)})
@@ -103,9 +122,11 @@ class Cloud:
             client = cvm_client.CvmClient(self.credential, region,
                 ClientProfile(httpProfile=HttpProfile(endpoint='cvm.intl.tencentcloudapi.com', reqTimeout=15)))
             offset, expected = 0, None
-            seen = set()
-            for page in range(100):
-                req = models.DescribeInstancesRequest(); req.Offset = offset; req.Limit = 100
+            seen: set[str] = set()
+            for _page in range(100):
+                req = models.DescribeInstancesRequest()
+                req.Offset = offset
+                req.Limit = 100
                 result = self.call(client.DescribeInstances, req)
                 total = result.TotalCount
                 batch = result.InstanceSet

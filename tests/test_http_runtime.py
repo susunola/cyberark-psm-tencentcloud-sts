@@ -1,10 +1,12 @@
 """Real loopback HTTP tests. The TLS proxy and cloud response remain untested here."""
-from pathlib import Path
 import re
 import tempfile
 import threading
 import unittest
+from pathlib import Path
+
 import requests
+
 from app import create_app
 from configuration import load_settings
 from runtime import make_server
@@ -27,7 +29,7 @@ class HttpRuntimeTests(unittest.TestCase):
             try:
                 while not cls.stopping.is_set():
                     cls.server.asyncore.loop(timeout=0.1, map=cls.server._map, count=1)
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 - never forward error text
                 cls.server_errors.append(error)
         cls.thread = threading.Thread(target=run, daemon=True)
         cls.thread.start()

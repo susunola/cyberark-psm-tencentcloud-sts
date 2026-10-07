@@ -2,6 +2,7 @@
 import unittest
 from types import SimpleNamespace as NS
 from unittest.mock import MagicMock, patch
+
 from federation import FederationError, validate_region
 from pam.cloud import Cloud
 from pam.vault import Vault

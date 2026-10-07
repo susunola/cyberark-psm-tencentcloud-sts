@@ -1,2 +1,4 @@
 """Source milestone; not a certification or compatibility claim."""
-VERSION = '0.5.2'
+from __future__ import annotations
+
+VERSION: str = '0.5.2'

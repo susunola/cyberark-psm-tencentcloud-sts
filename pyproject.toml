@@ -1,0 +1,144 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "psm-tencentcloud-sts"
+dynamic = ["version"]
+description = "Tencent Cloud international console role login bridge for CyberArk PSM"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "susunola" }]
+requires-python = ">=3.11"
+dependencies = [
+    "Flask>=3.1,<4",
+    "waitress>=3,<4",
+    "tencentcloud-sdk-python-sts>=3,<4",
+    "tencentcloud-sdk-python-cam>=3,<4",
+    "tencentcloud-sdk-python-cvm>=3,<4",
+    "requests>=2.32,<3",
+    "redis>=5,<9",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "coverage>=7.6",
+    "types-requests>=2.32",
+    "types-redis>=5",
+]
+
+[tool.setuptools]
+py-modules = [
+    "app",
+    "configuration",
+    "federation",
+    "runtime",
+    "security",
+    "version",
+]
+packages = ["pam"]
+
+[tool.setuptools.dynamic]
+version = { attr = "version.VERSION" }
+
+[tool.ruff]
+target-version = "py311"
+line-length = 160
+src = [".", "pam", "scripts", "tests"]
+extend-exclude = ["dist", "build"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "BLE",    # blind-except (documented fail-closed noqa)
+    "UP",     # pyupgrade
+    "C4",     # comprehensions
+    "SIM",    # simplify
+    "TRY",    # tryceratops
+    "RUF",    # ruff-specific
+    "PTH",    # pathlib
+    "PIE",    # misc lints
+    "RET",    # return
+    "T20",    # print (allow in scripts/tests)
+    "ARG",    # unused arguments
+    "PTH",    # pathlib
+    "PLW",    # pylint warnings
+    "PLE",    # pylint errors
+]
+ignore = [
+    "SIM108",   # ternary is not always clearer
+    "TRY003",   # long messages in exceptions are intentional here
+    "TRY004",   # public API raises ValueError for all validation, including type checks
+    "TRY300",   # early return in try is fine
+    "TRY301",   # abstract raise for control flow is intentional
+    "RET504",   # unnecessary assignment before return is sometimes clearer
+    "ARG001",   # unused method args in Flask handlers
+    "ARG002",   # unused method args in protocols
+    "PLW0603",  # global statements in scripts
+    "T201",     # print is the CLI contract in scripts/
+    "PLR0912",  # validation functions are intentionally branchy
+    "PLR0913",  # domain constructors take explicit parameters
+    "PLR0915",  # validation procedures are intentionally sequential
+    "PLR2004",  # magic values in security bounds are documented
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Compact one-liners are intentional in unit tests for dense fixture setup.
+"tests/*" = ["ARG", "PLR2004", "B011", "SIM117", "TRY", "T20", "E701", "E702", "E501"]
+"scripts/*" = ["T20", "PLW1510", "E501", "E701", "E702"]
+"pam/*" = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "configuration", "federation", "runtime", "security", "version", "pam"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["app.py", "configuration.py", "federation.py", "runtime.py", "security.py", "version.py", "pam"]
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_return_any = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = "tencentcloud.*"
+ignore_missing_imports = true
+
+[tool.coverage.run]
+branch = true
+source = ["app", "configuration", "federation", "runtime", "security", "version", "pam"]
+omit = ["tests/*", "scripts/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]

@@ -1,19 +1,24 @@
 """Strict startup validation with errors that never echo configuration secrets."""
+from __future__ import annotations
+
 import copy
-import re
 import json
+import re
 from pathlib import Path
+from typing import Any
+
 from federation import validate_destination, validate_region
 
 
-def load_settings(path):
-    def unique_object(pairs):
-        result = {}
+def load_settings(path: str | Path) -> dict[str, Any]:
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
         for key, value in pairs:
             if key in result:
                 raise ValueError('Duplicate configuration field')
             result[key] = value
         return result
+
     with Path(path).open('rb') as source:
         raw = source.read(1024 * 1024 + 1)
     if len(raw) > 1024 * 1024:
@@ -21,13 +26,13 @@ def load_settings(path):
     return validate_settings(json.loads(raw.decode('utf-8-sig'), object_pairs_hook=unique_object))
 
 
-def validate_settings(settings):
+def validate_settings(settings: Any) -> dict[str, Any]:
     if not isinstance(settings, dict) or set(settings) != {'profiles'}:
         raise ValueError('Expected a profiles object only')
     profiles = settings['profiles']
     if not isinstance(profiles, dict) or not 1 <= len(profiles) <= 100:
         raise ValueError('Configure 1..100 profiles')
-    seen_ids = set()
+    seen_ids: set[str] = set()
     required = {'role_arn', 'allowed_secret_ids', 'destination', 'duration_seconds', 'region'}
     for name, p in profiles.items():
         if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', name):

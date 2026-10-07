@@ -2,24 +2,23 @@ import base64
 import hashlib
 import hmac
 import re
-import unittest
-from unittest.mock import patch, MagicMock
 import time
+import unittest
+from unittest.mock import MagicMock, patch
 from urllib.parse import parse_qs, urlsplit
+
 from app import create_app
 from federation import FederationError, assume_role, login_url, validate_destination
 
 
 class BridgeTests(unittest.TestCase):
     def setUp(self):
-        self.creds = dict(TmpSecretId='AKID-TEST', TmpSecretKey='fake-test-secret', Token='test+/=&token')
+        self.creds = {'TmpSecretId': 'AKID-TEST', 'TmpSecretKey': 'fake-test-secret', 'Token': 'test+/=&token'}
         self.calls = []
         def sts(*args):
             self.calls.append(args)
             return self.creds
-        self.settings = {'profiles': {'readonly': dict(role_arn='qcs::cam::uin/123:roleName/ReadOnly',
-            allowed_secret_ids=['broker-id'], destination='https://console.tencentcloud.com/',
-            duration_seconds=300, region='ap-guangzhou')}}
+        self.settings = {'profiles': {'readonly': {'role_arn': 'qcs::cam::uin/123:roleName/ReadOnly', 'allowed_secret_ids': ['broker-id'], 'destination': 'https://console.tencentcloud.com/', 'duration_seconds': 300, 'region': 'ap-guangzhou'}}}
         self.app = create_app(self.settings, proxy_key='p' * 32, session_key='s' * 32, sts=sts)
         self.client = self.app.test_client()
         self.headers = {'X-PSM-Bridge-Key': 'p' * 32, 'X-PSM-Authenticated-User': 'PSMConnect'}
@@ -28,7 +27,7 @@ class BridgeTests(unittest.TestCase):
         r = self.client.get('/', headers=self.headers, base_url='https://bridge.local')
         self.assertEqual(r.status_code, 200)
         csrf = re.search(r'name="csrf" value="([^"]+)"', r.text).group(1)
-        return dict(csrf=csrf, secret_id='broker-id', secret_key='fake-broker-key', profile='readonly', audit_label='alice')
+        return {'csrf': csrf, 'secret_id': 'broker-id', 'secret_key': 'fake-broker-key', 'profile': 'readonly', 'audit_label': 'alice'}
 
     def post(self, data):
         return self.client.post('/connect', data=data, headers=self.headers, base_url='https://bridge.local')

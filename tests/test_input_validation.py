@@ -2,8 +2,9 @@ import copy
 import tempfile
 import unittest
 from unittest.mock import MagicMock
+
 from pam.lifecycle import Ticket
-from pam.maintenance import validate_jobs, run
+from pam.maintenance import run, validate_jobs
 from pam.onboarding import validate_account
 
 

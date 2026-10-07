@@ -3,8 +3,8 @@ import sys
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
-from pam.vault import Vault
-from pam.vault import VaultError
+
+from pam.vault import Vault, VaultError
 
 
 class OperationsTests(unittest.TestCase):
@@ -92,7 +92,7 @@ class OperationsTests(unittest.TestCase):
                       ['connect','--account','1_2','--component','PSM-SSH','--reason','Maintenance','--out','unused.json'],
                       ['recover-ticket','--journal','unused.json','--ticket','recovered.json'],
                       ['playback','--id','recording-123','--out','unused.json'] ]:
-            result = subprocess.run([sys.executable, str(script), *args], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, str(script), *args], capture_output=True, text=True, check=False)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('no-write', result.stdout)
 

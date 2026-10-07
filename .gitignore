@@ -12,6 +12,8 @@ settings.json
 *.zip
 .DS_Store
 dist/
+.coverage
+htmlcov/
 web.config.generated
 PSMTencentCloudSTS.xml
 shared-secrets.json

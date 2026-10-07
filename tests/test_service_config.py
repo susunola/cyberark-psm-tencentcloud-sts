@@ -1,8 +1,8 @@
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 
 @unittest.skipUnless(shutil.which('pwsh'), 'PowerShell integration runs on Windows CI')
@@ -11,7 +11,7 @@ class ServiceConfigTests(unittest.TestCase):
         helper=Path(__file__).resolve().parents[1]/'scripts/Shared-ServiceConfig.ps1'
         runner=directory/'run.ps1'
         runner.write_text("$ErrorActionPreference = 'Stop'\n. $args[0]\n"+script,encoding='utf-8')
-        return subprocess.run(['pwsh','-NoProfile','-File',str(runner),str(helper)],cwd=directory,capture_output=True,text=True)
+        return subprocess.run(['pwsh','-NoProfile','-File',str(runner),str(helper)],cwd=directory,capture_output=True,text=True,check=False)
 
     def test_atomic_replace_and_exact_original_backup(self):
         with tempfile.TemporaryDirectory() as folder:

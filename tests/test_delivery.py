@@ -1,13 +1,14 @@
 import io
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock
-from pam.audit import summarize, event
+
+from pam.audit import event, summarize
 from pam.delivery import export_records, onboard_batch, preflight
 from pam.vault import Vault
 
@@ -104,13 +105,13 @@ class DeliveryTests(unittest.TestCase):
             for name in ('app.py','federation.py','configuration.py','security.py','runtime.py','version.py'):
                 shutil.copyfile(root/name,destination/name)
             for name in ('__init__.py','audit.py'):shutil.copyfile(root/'pam'/name,destination/'pam'/name)
-            result=subprocess.run([sys.executable,'-c','import app; import runtime'],cwd=destination,capture_output=True,text=True)
+            result=subprocess.run([sys.executable,'-c','import app; import runtime'],cwd=destination,capture_output=True,text=True,check=False)
         self.assertEqual(result.returncode,0,result.stderr)
 
     def test_new_mutations_default_no_write(self):
         script=Path(__file__).resolve().parents[1]/'scripts/pamctl.py'
         for args in [['cancel-request','--id','request-123'],['onboard-batch','--safe','Guests','--platform','UnixSSH','--journal','absent.jsonl']]:
-            result=subprocess.run([sys.executable,str(script),*args],capture_output=True,text=True)
+            result=subprocess.run([sys.executable,str(script),*args],capture_output=True,text=True,check=False)
             self.assertEqual(result.returncode,0,result.stderr);self.assertIn('no-write',result.stdout)
 
 

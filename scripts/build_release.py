@@ -2,13 +2,13 @@
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import sys
-from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from version import VERSION
+from version import VERSION  # noqa: E402
 
 FILES = ['app.py', 'configuration.py', 'federation.py', 'security.py', 'runtime.py', 'version.py', 'README.md', 'README.zh-CN.md',
          'requirements.in', 'requirements.lock.txt', 'WebFormFields.template.txt',
@@ -33,8 +33,8 @@ with ZipFile(archive, 'w', compression=ZIP_DEFLATED) as output:
         output.writestr(info, data)
 # Inventory describes the locked source dependencies, not installed production hosts.
 components = []
-for line in (ROOT / 'requirements.lock.txt').read_text().splitlines():
-    line = line.strip()
+for raw in (ROOT / 'requirements.lock.txt').read_text().splitlines():
+    line = raw.strip()
     if not line or line.startswith('#'):
         continue
     name, version = line.split('==')

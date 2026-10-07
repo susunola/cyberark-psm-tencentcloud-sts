@@ -1,6 +1,11 @@
 """Two-stage rotation; old credentials stay active until explicit cutover confirmation."""
-from dataclasses import dataclass, asdict
+from __future__ import annotations
+
 import re
+from collections.abc import Callable, Mapping
+from dataclasses import asdict, dataclass
+from typing import Any
+
 from federation import assume_role
 from pam.cloud import uin
 
@@ -19,7 +24,7 @@ class Ticket:
     new_secret_id: str
     profile: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not isinstance(self.operation, str) or not re.fullmatch(r'[a-f0-9]{32}', self.operation):
             raise ValueError('Invalid ticket operation')
         object.__setattr__(self, 'target_uin', str(uin(self.target_uin)))
@@ -34,16 +39,16 @@ class Ticket:
         if self.old_account == self.new_account or self.old_secret_id == self.new_secret_id:
             raise ValueError('Ticket replacement must differ')
 
-    def public(self):
+    def public(self) -> dict[str, str]:
         return asdict(self)
 
 
-def validate_identifier(value):
+def validate_identifier(value: object) -> None:
     if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_-]{2,256}', value):
         raise ValueError('Invalid credential identifier')
 
 
-def validate_source(account, profile):
+def validate_source(account: Mapping[str, Any], profile: str) -> dict[str, Any]:
     if not isinstance(profile, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', profile):
         raise LifecycleError('Invalid source profile')
     for field in ('address', 'userName', 'platformId', 'safeName'):
@@ -57,7 +62,7 @@ def validate_source(account, profile):
     return props
 
 
-def prepare(cloud, vault, old_account_id, target, profile, operation):
+def prepare(cloud: Any, vault: Any, old_account_id: str, target: object, profile: str, operation: str) -> Ticket:
     if not re.fullmatch(r'[a-f0-9]{32}', operation):
         raise ValueError('Use a UUID hex operation ID')
     target = str(uin(target))
@@ -89,7 +94,7 @@ def prepare(cloud, vault, old_account_id, target, profile, operation):
             'secretManagement': {'automaticManagementEnabled': False,
                                  'manualManagementReason': 'External staged rotation; native CPM not configured'}}
         new_account = vault.create(payload)
-    except Exception:
+    except Exception:  # noqa: BLE001 - never forward error text
         # Preserve old key and the new cloud key. Vault save may have succeeded despite timeout.
         raise LifecycleError('Preparation incomplete; old key retained. Reconcile cloud/Vault before retrying.') from None
     finally:
@@ -97,7 +102,15 @@ def prepare(cloud, vault, old_account_id, target, profile, operation):
     return Ticket(operation, target, old_account_id, new_account, old_sid, new_sid, profile)
 
 
-def finalize(cloud, vault, ticket, settings, *, confirmed_cutover=False, role_verifier=assume_role):
+def finalize(
+    cloud: Any,
+    vault: Any,
+    ticket: Ticket,
+    settings: Mapping[str, Any],
+    *,
+    confirmed_cutover: bool = False,
+    role_verifier: Callable[..., Mapping[str, str]] = assume_role,
+) -> dict[str, str]:
     if not confirmed_cutover:
         raise LifecycleError('Explicit tested PSM cutover confirmation required')
     if ticket.old_secret_id == ticket.new_secret_id or ticket.old_account == ticket.new_account:
@@ -135,7 +148,7 @@ def finalize(cloud, vault, ticket, settings, *, confirmed_cutover=False, role_ve
     return {'operation': ticket.operation, 'status': 'old-key-inactive', 'new_account': ticket.new_account}
 
 
-def restore_old(cloud, target, old_sid):
+def restore_old(cloud: Any, target: object, old_sid: str) -> dict[str, str]:
     keys = {k['id'] for k in cloud.keys(target)}
     if old_sid not in keys:
         raise LifecycleError('Cannot restore a deleted key')
@@ -143,7 +156,7 @@ def restore_old(cloud, target, old_sid):
     return {'status': 'old-key-reactivated'}
 
 
-def recover_ticket(cloud, vault, journal):
+def recover_ticket(cloud: Any, vault: Any, journal: Mapping[str, Any]) -> Ticket:
     """Read-only recovery: discover a verified pair after an uncertain prepare outcome."""
     required = {'operation', 'status', 'target_uin', 'old_account', 'profile'}
     if not isinstance(journal, dict) or set(journal) != required or journal['status'] != 'preparing':

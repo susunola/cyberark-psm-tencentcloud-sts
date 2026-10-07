@@ -1,13 +1,14 @@
 import concurrent.futures
 import json
 import os
-from pathlib import Path
 import re
 import tempfile
 import time
 import unittest
-from unittest.mock import MagicMock, patch
 import uuid
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 from app import create_app
 from security import RedisTokenStore, TokenStoreError, configured_token_store, shared_environment
 

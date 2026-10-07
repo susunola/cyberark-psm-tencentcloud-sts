@@ -1,11 +1,20 @@
 """Credential-free CVM onboarding proposals; never assume guest credentials."""
+from __future__ import annotations
+
 import ipaddress
+from typing import Any
 
 
-def cvm_plan(inventory, safe, linux_platform, windows_platform, usernames):
+def cvm_plan(
+    inventory: dict[str, Any],
+    safe: str,
+    linux_platform: str,
+    windows_platform: str,
+    usernames: dict[str, str],
+) -> dict[str, list[dict[str, Any]]]:
     if not all((safe, linux_platform, windows_platform)):
         raise ValueError('Explicit Safe and platform IDs required')
-    result = {'accounts': [], 'skipped': []}
+    result: dict[str, list[dict[str, Any]]] = {'accounts': [], 'skipped': []}
     for instance in inventory.get('instances', []):
         os_name = (instance.get('os') or '').lower()
         kind = 'windows' if 'windows' in os_name else 'linux' if any(n in os_name for n in ('linux', 'ubuntu', 'centos', 'debian', 'rocky', 'suse')) else None

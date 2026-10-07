@@ -1,7 +1,7 @@
 """Validate a configuration file without contacting Tencent Cloud."""
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from configuration import load_settings

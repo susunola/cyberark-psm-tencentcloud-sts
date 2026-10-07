@@ -7,7 +7,7 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from scripts.pamctl import build_parser
+from scripts.pamctl import build_parser  # noqa: E402
 
 
 def check():
@@ -47,4 +47,4 @@ if __name__ == '__main__':
         check()
     except ValueError as error:
         print(str(error), file=sys.stderr)
-        raise SystemExit(2)
+        raise SystemExit(2) from error

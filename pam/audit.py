@@ -1,19 +1,25 @@
 """Local aggregate reports: do not export identities, URLs or arbitrary log fields."""
-from collections import Counter
-from datetime import datetime, timezone
+from __future__ import annotations
+
 import json
 import re
+from collections import Counter
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Any, TextIO
 
 
-def event(fields):
-    return json.dumps({'schema_version':1, 'timestamp':datetime.now(timezone.utc).isoformat(timespec='milliseconds'), **fields})
+def event(fields: Mapping[str, Any]) -> str:
+    return json.dumps({'schema_version': 1, 'timestamp': datetime.now(UTC).isoformat(timespec='milliseconds'), **fields})
 
 
-def summarize(stream, max_lines=100000):
+def summarize(stream: TextIO, max_lines: int = 100000) -> dict[str, Any]:
     if type(max_lines) is not int or not 1 <= max_lines <= 100000:
         raise ValueError('Invalid audit line bound')
-    statuses, profiles = Counter(), Counter()
-    seen_http, seen_roles = set(), set()
+    statuses: Counter[str] = Counter()
+    profiles: Counter[str] = Counter()
+    seen_http: set[str] = set()
+    seen_roles: set[str] = set()
     lines, ignored = 0, 0
     while True:
         line = stream.readline(8193)
@@ -33,12 +39,14 @@ def summarize(stream, max_lines=100000):
         request_id = row['request_id']
         if row.get('event') == 'http_result' and type(row.get('status')) is int and 100 <= row['status'] <= 599:
             if request_id not in seen_http:
-                statuses[str(row['status'])] += 1; seen_http.add(request_id)
+                statuses[str(row['status'])] += 1
+                seen_http.add(request_id)
         elif row.get('event') == 'role_session_issued' and isinstance(row.get('profile'), str) and re.fullmatch(r'[A-Za-z0-9_-]{1,80}', row['profile']):
             if request_id not in seen_roles:
-                profiles[row['profile']] += 1; seen_roles.add(request_id)
+                profiles[row['profile']] += 1
+                seen_roles.add(request_id)
         else:
             ignored += 1
-    return {'input_lines':lines,'ignored_lines':ignored,'unique_http_events':len(seen_http),
-            'unique_role_events':len(seen_roles),'http_status_counts':dict(statuses),'role_profile_counts':dict(profiles),
-            'scope':'local bridge aggregates; not native PAM threat analytics'}
+    return {'input_lines': lines, 'ignored_lines': ignored, 'unique_http_events': len(seen_http),
+            'unique_role_events': len(seen_roles), 'http_status_counts': dict(statuses), 'role_profile_counts': dict(profiles),
+            'scope': 'local bridge aggregates; not native PAM threat analytics'}
