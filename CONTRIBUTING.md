@@ -21,6 +21,27 @@ Two checks go further than the gate above and run as their own CI jobs:
 - `python scripts/check_guard_mutations.py` disables one security guard at a time and requires the suite to fail, so a control that no test protects is reported (about a minute). It refuses to run when a target file differs from HEAD, so it cannot hide uncommitted work.
 - `python -m pip_audit -r requirements.lock.txt` fails when a published advisory covers a pinned dependency. A new advisory is a real finding rather than a flake, so it is expected to break the build until the pin moves.
 
+### What can and cannot be checked off Windows
+
+`tests/test_service_config.py` executes `scripts/Shared-ServiceConfig.ps1` through
+`pwsh` whenever it is on PATH - on Linux and macOS too, not only on Windows CI. If
+`pwsh` is missing the whole class is skipped and the only remaining PowerShell
+coverage is the parse step in CI, so install PowerShell locally rather than
+assuming Windows is required:
+
+```text
+brew install powershell            # macOS
+python -m unittest tests.test_service_config -v
+```
+
+Three deployment scripts cannot be executed anywhere but their target:
+`Install-Bridge.ps1` needs administrator rights, `icacls.exe`, WinSW and a
+machine-wide Python; `Configure-SharedTokens.ps1` needs `icacls.exe` and the
+service; `Uninstall-Bridge.ps1` needs the service. CI parses all of them and this
+repository also pins their security-relevant statements by assertion in
+`tests/test_hardening.py`, so a property cannot be dropped silently - but that is
+text, not execution. Their runtime behaviour is an acceptance item, not a test.
+
 ### Run the Redis integration suite locally
 
 The shared-token backend runs a Lua script, and the entire integration suite is

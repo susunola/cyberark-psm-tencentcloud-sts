@@ -119,6 +119,45 @@ class HardeningTests(unittest.TestCase):
             with self.assertRaises(FederationError):
                 login_url(creds, 'https://console.tencentcloud.com/')
 
+    def test_shared_token_config_grants_only_the_service_account_read(self):
+        """The shared Redis/session configuration is readable by LocalService on purpose.
+
+        Unlike the generated proxy configuration, WinSW must read this file at start-up,
+        so LocalService read is required here. Pin the exact principal set so a future
+        reader does not remove the necessary grant, and pin the absence of a broad one.
+        """
+        script = (ROOT / "scripts/Configure-SharedTokens.ps1").read_text(encoding="utf-8")
+        self.assertIn("'/inheritance:r'", script)
+        self.assertIn("'*S-1-5-18:F'", script)  # SYSTEM
+        self.assertIn("'*S-1-5-32-544:F'", script)  # Administrators
+        self.assertIn("'*S-1-5-19:R'", script)  # LocalService, read only
+        for broad in ("*S-1-1-0", "*S-1-5-32-545", "*S-1-5-11", "*S-1-5-32-546"):
+            self.assertNotIn(broad, script, f"{broad} must never be granted")
+        # The copy happens first, so the protection immediately follows it.
+        self.assertLess(script.index("[System.IO.File]::Copy"), script.index("& icacls.exe"))
+        # A failed protection must abort before the service configuration is touched.
+        self.assertLess(script.index("& icacls.exe"), script.index("Save-SharedServiceConfig -Document"))
+
+    def test_shared_token_config_validates_and_refuses_before_it_mutates(self):
+        script = (ROOT / "scripts/Configure-SharedTokens.ps1").read_text(encoding="utf-8")
+        # Stops or asks for -Restart, refuses an existing configuration or backup, and
+        # proves the configuration works through the real Python loader, silently.
+        self.assertIn("Stop the service or explicitly supply -Restart", script)
+        self.assertIn("Existing shared configuration or backup found", script)
+        self.assertIn("configured_token_store(shared_environment(os.environ))", script)
+        self.assertIn("no details are printed", script)
+        # Validation precedes the file copy that makes the configuration live.
+        self.assertLess(script.index("configured_token_store"), script.index("[System.IO.File]::Copy"))
+
+    def test_uninstall_preserves_evidence_and_is_guarded(self):
+        script = (ROOT / "scripts" / "Uninstall-Bridge.ps1").read_text(encoding="utf-8")
+        self.assertIn("#Requires -RunAsAdministrator", script)
+        # An uninstall must not destroy the service configuration or its secrets: they are
+        # audit and rollback evidence, and the operator is told what remains.
+        self.assertNotIn("Remove-Item", script)
+        self.assertIn("Files preserved for audit/rollback", script)
+        self.assertIn("Remove the dedicated IIS site", script)
+
     def test_proxy_template_overwrites_headers(self):
         root = ElementTree.parse(ROOT / 'deployment/web.config.template').getroot()
         variables = {v.attrib['name']: v.attrib['value'] for v in root.findall('.//serverVariables/set')}
