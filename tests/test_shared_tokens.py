@@ -109,8 +109,12 @@ class RealRedisTests(unittest.TestCase):
         self.store = RedisTokenStore(self.client, namespace=self.namespace)
 
     def tearDown(self):
-        # Includes the per-identity index keys created by the issue script.
-        self.client.delete(*self.client.keys(self.store.prefix + ":*"))
+        # Includes the per-identity index keys created by the issue script. Redis drops
+        # an empty collection itself, so the pattern can legitimately match nothing and
+        # DEL with no keys is an error.
+        stale = self.client.keys(self.store.prefix + ":*")
+        if stale:
+            self.client.delete(*stale)
         self.client.close()
 
     def test_cross_node_atomic_replay(self):
