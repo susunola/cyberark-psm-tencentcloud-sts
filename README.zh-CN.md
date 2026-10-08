@@ -173,7 +173,7 @@ flowchart TB
 
 ## Windows 版本范围
 
-自动化源码验证覆盖 **Windows Server 2025（`windows-2025`）＋Python 3.11–3.14**。Windows Server 2019／2022 尚未测试，仅作为评估候选，并须符合实际 PSM／Connector 版本的官方支持矩阵。Windows CI 还使用 Python 3.13 执行安装、服务就绪及 ACL 检查。目前没有 Windows 版本完成本插件端到端 PSM／IIS 验收；不声明支持桌面 Windows、Server Core 或 ARM64 部署。详见 [Windows 兼容矩阵](docs/DEPLOYMENT.zh-CN.md)。
+自动化源码验证覆盖 **Windows Server 2025（`windows-2025`）＋Python 3.11–3.14**。**Windows Server 2022／2019／2016 已于 2026-10-08 在腾讯云真实 CVM 上通过 Bridge 安装／服务验收**，使用 Python 3.13.7、Windows PowerShell 5.1 和 WinSW 2.12.0，详见[实测报告](docs/WINDOWS-CVM-ACCEPTANCE.zh-CN.md)。部署仍须符合实际 PSM／Connector 的官方支持矩阵。Windows CI 还使用 Python 3.13 执行安装、服务就绪及 ACL 检查。目前没有 Windows 版本完成本插件端到端 PSM／IIS 验收；不声明支持桌面 Windows、Server Core 或 ARM64 部署。详见 [Windows 兼容矩阵](docs/DEPLOYMENT.zh-CN.md)。
 
 ## 桥接服务部署到 Windows PSM
 

@@ -1,0 +1,84 @@
+{
+  "tested_date": "2026-10-08",
+  "timezone": "Asia/Shanghai",
+  "source_commit": "401ad3c",
+  "tested_patch": "scripts/ci/install-service.ps1: keep native stderr separate instead of 2>&1",
+  "region": "ap-singapore",
+  "zone": "ap-singapore-2",
+  "instance_type": "SA9.MEDIUM4",
+  "system_disk_gb": 50,
+  "architecture": "x64",
+  "python": "3.13.7",
+  "winsw": "2.12.0",
+  "winsw_sha256": "05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da",
+  "configuration": "synthetic profile; no real caller credentials on guests",
+  "hosts": [
+    {
+      "os": "Windows Server 2022 Datacenter English",
+      "build": "20348",
+      "powershell": "5.1.20348.4294",
+      "image_id": "img-9tzezztj",
+      "result": "pass",
+      "checks": [
+        "fetch-winsw",
+        "write-acceptance-settings",
+        "assert-tampered-winsw-refused",
+        "install-service",
+        "assert-installer-acls",
+        "assert-readiness-probe",
+        "assert-tampered-form-refused",
+        "service-restart",
+        "uninstall-preserves-files"
+      ],
+      "initial_attempt": "failed in native stderr-redirection wrapper before service registration"
+    },
+    {
+      "os": "Windows Server 2019 Datacenter English",
+      "build": "17763",
+      "powershell": "5.1.17763.8755",
+      "image_id": "img-bhvhr6pr",
+      "result": "pass",
+      "checks": [
+        "fetch-winsw",
+        "write-acceptance-settings",
+        "assert-tampered-winsw-refused",
+        "install-service",
+        "assert-installer-acls",
+        "assert-readiness-probe",
+        "assert-tampered-form-refused",
+        "service-restart",
+        "uninstall-preserves-files"
+      ],
+      "initial_attempt": "failed in native stderr-redirection wrapper before service registration"
+    },
+    {
+      "os": "Windows Server 2016 Datacenter English",
+      "build": "14393",
+      "powershell": "5.1.14393.9140",
+      "image_id": "img-1eckhm4t",
+      "result": "pass",
+      "checks": [
+        "fetch-winsw",
+        "write-acceptance-settings",
+        "assert-tampered-winsw-refused",
+        "install-service",
+        "assert-installer-acls",
+        "assert-readiness-probe",
+        "assert-tampered-form-refused",
+        "service-restart",
+        "uninstall-preserves-files"
+      ],
+      "initial_attempt": "passed with stderr fix"
+    }
+  ],
+  "cleanup": "All three test CVMs terminated; borrowed security group unchanged",
+  "not_tested": [
+    "IIS/ARR authentication and TLS",
+    "CyberArk PSM/PVWA integration",
+    "Browser console login",
+    "Recording/playback",
+    "Windows Server 2012 R2 and older",
+    "Other Python versions on these CVMs"
+  ],
+  "checked_in_fix": "scripts/ci/install-service.ps1"
+}

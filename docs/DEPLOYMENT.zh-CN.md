@@ -9,17 +9,20 @@
 | Windows 主机版本 | 仓库验证状态 | 部署条件 |
 |---|---|---|
 | Windows Server 2025 | `windows-2025` CI 覆盖 Python 3.11–3.14、源码测试及 PowerShell 语法/文件测试；另有 Python 3.13 作业执行 WinSW 安装、服务就绪、ACL 和卸载检查 | IIS 认证及真实 PSM 浏览器／会话仍需现场验收 |
-| Windows Server 2022 | 未测试；可作为环境评估候选 | 先确认实际 PSM／Privilege Cloud Connector 版本的官方支持矩阵 |
-| Windows Server 2019 | 未测试；可作为环境评估候选 | 同样需官方版本支持及完整现场验收 |
-| Windows Server 2016 及更早版本 | 未测试，不声明兼容 | 本仓库不提供部署推荐 |
+| Windows Server 2022 | **2026-10-08 腾讯云真实 CVM 实测通过**：数据中心版英文 x64，build 20348，Python 3.13.7、PowerShell 5.1、WinSW 2.12.0；Bridge 安装／服务检查通过 | 仍需对应 PSM／Connector 官方 OS 支持及 IIS／PSM 端到端验收 |
+| Windows Server 2019 | **2026-10-08 腾讯云真实 CVM 实测通过**：数据中心版英文 x64，build 17763；相同 Python／PowerShell／WinSW 组合和 Bridge 检查通过 | 同样需官方 OS 支持及 IIS／PSM 验收 |
+| Windows Server 2016 | **2026-10-08 腾讯云真实 CVM 实测通过**：数据中心版英文 x64，build 14393；相同 Python／PowerShell／WinSW 组合和 Bridge 检查通过 | 同样需官方 OS 支持及 IIS／PSM 验收 |
+| Windows Server 2012 R2 及更早版本 | 未测试，不声明兼容 | 本仓库不提供部署推荐 |
 | Windows 10／11 | 未作为 PSM 部署主机验证 | 本仓库不声明支持其作为 PSM 生产主机 |
 | Server Core／ARM64 | 未验证 | 不声明部署支持 |
+
+详见[真实 Windows CVM 实测报告](WINDOWS-CVM-ACCEPTANCE.zh-CN.md)，包含镜像 ID、检查项、PowerShell 5.1 修复和销毁确认。这三种 CVM 的实测仅覆盖 Python 3.13.7。
 
 部署采用能够运行原生 PSM 图形界面／浏览器的 Windows x64 主机。实际支持组合必须同时满足：对应 PSM／Connector 版本的官方 OS 矩阵、Python 3.11–3.14、经审核的 WinSW／IIS 组件，以及本插件现场验收结果。Windows 版本较新不等于 PSM 自动支持；PAM SaaS 也需具备相应客户侧 Connector／PSM 能力。
 
 验收记录应填写 Windows 版本/edition/build、图形界面安装模式、PSM／Connector、浏览器及驱动、Python、PowerShell、WinSW、IIS／ARR／Rewrite 版本，并验证安装、服务重启、HTTPS 身份、云登录、录屏和退出清理。取得实测证据后才扩充支持矩阵。
 
-先在与生产版本一致的测试 PSM 部署。需要服务账号可读取的机器级 Python 3.11–3.14、经核验的 WinSW 二进制及 SHA256、IIS Windows Authentication、URL Rewrite、ARR。WinSW 不随本包分发。安装脚本和代理模板尚待真实 Windows 环境验收。
+先在与生产版本一致的测试 PSM 部署。需要服务账号可读取的机器级 Python 3.11–3.14、经核验的 WinSW 二进制及 SHA256、IIS Windows Authentication、URL Rewrite、ARR。WinSW 不随本包分发。安装／服务已在上述 CVM 通过；IIS 代理模板和完整 PSM 流程仍待验收。
 
 ## 国际站云端实测证据
 

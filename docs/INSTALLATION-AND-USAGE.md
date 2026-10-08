@@ -20,7 +20,7 @@ The deliverable is bridge and administrative source code, not an importable nati
 10. [Upgrade, rollback and uninstall](#maintenance)
 11. [Troubleshooting and acceptance](#troubleshooting)
 
-Windows host selection must follow the [deployment compatibility matrix](DEPLOYMENT.md). CI coverage and live PSM acceptance are separate.
+Windows host selection must follow the [deployment compatibility matrix](DEPLOYMENT.md). Windows 2022/2019/2016 bridge installation/service checks passed on real Tencent Cloud CVMs with Python 3.13.7; see the [test report](WINDOWS-CVM-ACCEPTANCE.md). CI, bridge service acceptance and end-to-end PSM acceptance are separate.
 
 <a id="preparation"></a>
 ## 1. Architecture and prerequisites
