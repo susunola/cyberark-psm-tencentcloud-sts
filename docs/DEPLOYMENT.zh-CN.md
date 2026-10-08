@@ -21,6 +21,21 @@
 
 先在与生产版本一致的测试 PSM 部署。需要服务账号可读取的机器级 Python 3.11–3.14、经核验的 WinSW 二进制及 SHA256、IIS Windows Authentication、URL Rewrite、ARR。WinSW 不随本包分发。安装脚本和代理模板尚待真实 Windows 环境验收。
 
+## 国际站云端实测证据
+
+**2026-10-08（UTC）**，使用仓库所有者提供的 AK/SK，在 **macOS（Darwin）、Python 3.14.7** 上验证源码提交 `abfbd4e`，区域 `ap-singapore`，端点 `sts.intl.tencentcloudapi.com`。公开记录不包含凭证值、账号 ID、角色 ARN 或登录 URL。
+
+| 检查项 | 结果 | 证明范围 |
+|---|---|---|
+| 国际站 STS `GetCallerIdentity` | 通过；`Type=CAMUser`，`UserId=PrincipalId` | 本次调用者凭证可用，身份字段比较符合插件逻辑 |
+| 专用测试角色查询 | 角色不存在 | 上次的 `PSMAcceptanceProbe` 已不存在；本次未创建或修改角色 |
+| `AssumeRole` 与控制台回调 | 本次未测试 | 需要已有的获授权测试角色，或另行获授权的临时角色 |
+| Windows／IIS／PSM／录屏 | 本次云端检查未测试 | macOS 上的 API 结果不能扩展 Windows 支持范围 |
+
+本次只执行身份及角色只读查询，与[验收记录](ACCEPTANCE.zh-CN.md)中的早期云端部分验收分开。身份验证通过不能证明角色授权、浏览器控制台登录或 PSM 端到端兼容性。
+
+## 安装步骤
+
 1. 在管理员控制的目录解压代码，填写 `settings.json`。每个 SecretId 只能绑定一个角色配置；云端 SecretKey 保存在 Vault。
 2. 执行 `python scripts/check_config.py settings.json`，校验配置，不调用云 API。
 3. 管理员 PowerShell 执行：

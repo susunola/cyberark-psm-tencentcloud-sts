@@ -19,6 +19,19 @@ Use a Windows x64 host capable of running the native PSM GUI/browser stack. The 
 
 Record the Windows edition/build, GUI installation mode, PSM/Connector version, browser/driver, Python, PowerShell, WinSW and IIS/ARR/Rewrite versions in the acceptance record. Validate installation, service restart, HTTPS identity, cloud login, recording and cleanup on that exact combination. Expand this matrix only when evidence is available.
 
+## Live international-cloud compatibility evidence
+
+On **2026-10-08 (UTC)**, the caller AK/SK supplied by the repository owner was tested from **macOS (Darwin), Python 3.14.7**, using source commit `abfbd4e`, region `ap-singapore`, and `sts.intl.tencentcloudapi.com`. Credential values, account IDs, role ARNs and login URLs are omitted from this public record.
+
+| Check | Result | Scope |
+|---|---|---|
+| International STS `GetCallerIdentity` | Passed; `Type=CAMUser`, `UserId=PrincipalId` | Confirms this caller credential and identity comparison against the real international API |
+| Dedicated test role lookup | Role absent | The previous `PSMAcceptanceProbe` role does not exist; no role was created or modified during this run |
+| `AssumeRole` and console callback | Not tested in this run | Requires an existing authorized test role or a separately authorized temporary role |
+| Windows / IIS / PSM / recording | Not tested by this cloud check | This macOS API result does not expand the Windows support matrix |
+
+This run performed read-only identity/role inspection. It is separate from the earlier partial cloud acceptance recorded in [acceptance evidence](ACCEPTANCE.md). A successful identity check does not establish role authorization, browser console login or end-to-end PSM compatibility.
+
 ## Prerequisites
 
 Use a staging PSM matching the target production version. Supply a machine-wide supported Python 3.11–3.14 installation readable by the service account, a reviewed WinSW binary with its verified SHA256, IIS Windows Authentication, URL Rewrite and ARR. No WinSW executable is distributed here. Compare the XML/commands with the selected WinSW release before deployment.
