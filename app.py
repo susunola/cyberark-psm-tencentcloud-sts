@@ -367,7 +367,8 @@ def main() -> None:
     except KeyError as error:
         # A missing variable name is a configuration fact, not a secret value; naming it
         # is what makes a silent service failure diagnosable.
-        raise SystemExit(f'Bridge startup requires environment variable {error.args[0]}.') from None
+        name = error.args[0] if error.args else 'unknown'
+        raise SystemExit(f'Bridge startup requires environment variable {name}.') from None
     except Exception:  # noqa: BLE001 - never forward error text
         raise SystemExit('Bridge startup configuration invalid. Check service environment and settings.') from None
     make_server(app).run()

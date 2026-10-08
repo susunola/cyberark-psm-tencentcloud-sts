@@ -174,7 +174,9 @@ class VaultRequestTests(VaultTestCase):
         transport.request.return_value = response
         with self.assertRaises(VaultError) as error:
             vault.request("GET", "/Accounts")
-        self.assertIn("PVWA request failed", str(error.exception))
+        # Sanitized: classifies the fault without echoing the body or stack.
+        self.assertIn("PVWA response was not valid JSON", str(error.exception))
+        self.assertNotIn("<html>", str(error.exception))
 
     def test_declared_oversized_response_is_rejected_before_the_body_is_read(self):
         vault, transport = self.transport_vault()

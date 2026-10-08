@@ -11,6 +11,7 @@ import requests
 from validate import (
     MAX_FIELD_TEXT_LEN,
     MAX_IDENTIFIER_LEN,
+    MAX_PVWA_READ_CHUNK_BYTES,
     MAX_PVWA_RESPONSE_BYTES,
     MAX_PVWA_TOKEN_LEN,
     is_credential_text,
@@ -114,7 +115,7 @@ class Vault:
                 if declared is not None and (not declared.isdigit() or int(declared) > MAX_PVWA_RESPONSE_BYTES):
                     raise VaultError('PVWA response exceeded size limit', response.status_code)
                 chunks, received = [], 0
-                for chunk in response.iter_content(chunk_size=65536):
+                for chunk in response.iter_content(chunk_size=MAX_PVWA_READ_CHUNK_BYTES):
                     received += len(chunk)
                     if received > MAX_PVWA_RESPONSE_BYTES:
                         raise VaultError('PVWA response exceeded size limit', response.status_code)
@@ -122,7 +123,12 @@ class Vault:
                 body = b''.join(chunks)
             finally:
                 response.close()
-            return json.loads(body) if body else None
+            if not body:
+                return None
+            try:
+                return json.loads(body.decode('utf-8'))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                raise VaultError('PVWA response was not valid JSON', response.status_code) from None
         except VaultError:
             raise
         except Exception:  # noqa: BLE001 - never forward error text
