@@ -20,6 +20,8 @@
 10. [升级、回滚、卸载](#maintenance)
 11. [排错和验收](#troubleshooting)
 
+选择 Windows 主机前先核对[部署兼容矩阵](DEPLOYMENT.zh-CN.md)，区分 CI 覆盖与真实 PSM 验收。
+
 <a id="preparation"></a>
 ## 1. 架构与部署准备
 

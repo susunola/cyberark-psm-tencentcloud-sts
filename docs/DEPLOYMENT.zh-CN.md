@@ -2,6 +2,23 @@
 
 [English](DEPLOYMENT.md)
 
+## Windows 部署兼容范围
+
+下表描述本仓库的验证证据，不代表 CyberArk／Idira 认证。**目前没有任何 Windows 版本完成本组件的端到端 PSM 部署验收。**
+
+| Windows 主机版本 | 仓库验证状态 | 部署条件 |
+|---|---|---|
+| Windows Server 2025 | `windows-2025` CI 覆盖 Python 3.11–3.14、源码测试及 PowerShell 语法/文件测试；另有 Python 3.13 作业执行 WinSW 安装、服务就绪、ACL 和卸载检查 | IIS 认证及真实 PSM 浏览器／会话仍需现场验收 |
+| Windows Server 2022 | 未测试；可作为环境评估候选 | 先确认实际 PSM／Privilege Cloud Connector 版本的官方支持矩阵 |
+| Windows Server 2019 | 未测试；可作为环境评估候选 | 同样需官方版本支持及完整现场验收 |
+| Windows Server 2016 及更早版本 | 未测试，不声明兼容 | 本仓库不提供部署推荐 |
+| Windows 10／11 | 未作为 PSM 部署主机验证 | 本仓库不声明支持其作为 PSM 生产主机 |
+| Server Core／ARM64 | 未验证 | 不声明部署支持 |
+
+部署采用能够运行原生 PSM 图形界面／浏览器的 Windows x64 主机。实际支持组合必须同时满足：对应 PSM／Connector 版本的官方 OS 矩阵、Python 3.11–3.14、经审核的 WinSW／IIS 组件，以及本插件现场验收结果。Windows 版本较新不等于 PSM 自动支持；PAM SaaS 也需具备相应客户侧 Connector／PSM 能力。
+
+验收记录应填写 Windows 版本/edition/build、图形界面安装模式、PSM／Connector、浏览器及驱动、Python、PowerShell、WinSW、IIS／ARR／Rewrite 版本，并验证安装、服务重启、HTTPS 身份、云登录、录屏和退出清理。取得实测证据后才扩充支持矩阵。
+
 先在与生产版本一致的测试 PSM 部署。需要服务账号可读取的机器级 Python 3.11–3.14、经核验的 WinSW 二进制及 SHA256、IIS Windows Authentication、URL Rewrite、ARR。WinSW 不随本包分发。安装脚本和代理模板尚待真实 Windows 环境验收。
 
 1. 在管理员控制的目录解压代码，填写 `settings.json`。每个 SecretId 只能绑定一个角色配置；云端 SecretKey 保存在 Vault。

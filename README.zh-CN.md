@@ -171,6 +171,10 @@ flowchart TB
 3. 给目标角色绑定业务所需权限，先用只读角色验收。桥接服务不创建用户、角色或广泛的管理权限。独立管理工具提供两阶段密钥轮换；原生 CPM 按需另行配置，切换时同步角色白名单。
 4. 配置 `settings.json` 中的角色 ARN、允许的 SecretId 和目标页面。默认 300 秒，作为本项目短期凭据策略；在测试环境确认当前 STS 接口接受这个时长。
 
+## Windows 版本范围
+
+自动化源码验证覆盖 **Windows Server 2025（`windows-2025`）＋Python 3.11–3.14**。Windows Server 2019／2022 尚未测试，仅作为评估候选，并须符合实际 PSM／Connector 版本的官方支持矩阵。Windows CI 还使用 Python 3.13 执行安装、服务就绪及 ACL 检查。目前没有 Windows 版本完成本插件端到端 PSM／IIS 验收；不声明支持桌面 Windows、Server Core 或 ARM64 部署。详见 [Windows 兼容矩阵](docs/DEPLOYMENT.zh-CN.md)。
+
 ## 桥接服务部署到 Windows PSM
 
 按[手册的安装步骤](docs/INSTALLATION-AND-USAGE.zh-CN.md#install)操作。在完整源码目录打开管理员 PowerShell，执行 `scripts/Install-Bridge.ps1`，提供机器级 Python、经审核的 WinSW、可信 SHA256 和已校验配置。**不要预先创建安装目录**，由安装器创建并设置受限 ACL。

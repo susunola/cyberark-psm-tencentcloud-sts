@@ -20,6 +20,8 @@ The deliverable is bridge and administrative source code, not an importable nati
 10. [Upgrade, rollback and uninstall](#maintenance)
 11. [Troubleshooting and acceptance](#troubleshooting)
 
+Windows host selection must follow the [deployment compatibility matrix](DEPLOYMENT.md). CI coverage and live PSM acceptance are separate.
+
 <a id="preparation"></a>
 ## 1. Architecture and prerequisites
 

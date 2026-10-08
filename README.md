@@ -173,6 +173,10 @@ Version 0.3.0 adds `scripts/pamctl.py`: CAM/CVM discovery, guest onboarding prop
 3. Attach the required business permissions to the role; start acceptance testing with a read-only role. The bridge does not provision users/roles. The separate administrative toolkit supports staged key rotation; configure native CPM separately if required, and update caller allowlists during cutover.
 4. Set the role ARN, allowed SecretIds, and destination in `settings.json`. The default duration is 300 seconds, as this project’s short-lived credential policy. Verify that the current STS API accepts this duration in staging.
 
+## Windows versions
+
+Automated source checks run on **Windows Server 2025 (`windows-2025`) with Python 3.11–3.14**. Windows Server 2019/2022 are untested evaluation candidates, subject to the installed PSM/Connector's vendor support matrix. No Windows version has completed this plugin's end-to-end PSM/IIS acceptance. The Windows CI also exercises installation, service readiness and ACLs with Python 3.13. Windows desktop, Server Core and ARM64 deployment support is not claimed. See the [Windows compatibility matrix](docs/DEPLOYMENT.md).
+
 ## Windows PSM deployment
 
 Follow the [step-by-step manual](docs/INSTALLATION-AND-USAGE.md#install). Run `scripts/Install-Bridge.ps1` from full source in administrator PowerShell, supplying a machine-wide Python executable, reviewed WinSW binary, trusted SHA256 and validated settings file. **Do not pre-create the installation directory**; the installer creates it with restricted ACLs.
