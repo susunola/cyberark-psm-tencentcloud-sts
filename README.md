@@ -4,6 +4,8 @@
 
 **Start here: [Detailed installation and usage manual](docs/INSTALLATION-AND-USAGE.md)** — prerequisites, Windows/IIS setup, PVWA/PSM, commands, rotation, recovery and troubleshooting.
 
+**Partner testing: [Licensed-lab acceptance handoff](docs/PARTNER-ACCEPTANCE.md)** — test scope, evidence requirements and a result template.
+
 A Tencent Cloud international console role login bridge for CyberArk PSM, using an architecture similar to AWS Console STS:
 
 ## Login flow

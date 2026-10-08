@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add real loopback HTTPS PVWA transport contracts and bilingual licensed-lab partner acceptance instructions with a pending-only evidence template, included in the source distribution.
+
 - Refuse paginated PVWA rotation recovery results even when the response omits or understates the record count. Recovery cannot treat a partial account inventory as complete; regression tests cover all three count variants without following the supplied next-page URL.
 
 - Bound the PVWA response body, closing the last unbounded inbound size. Every other inbound byte stream already had a `MAX_*` ceiling, but `Vault.request` parsed `response.json()` with no limit, so a compromised or abnormal PVWA could exhaust bridge memory. The adapter now streams with `stream=True`, rejects a declared `Content-Length` above `MAX_PVWA_RESPONSE_BYTES` (1 MiB) before reading the body, rejects a non-numeric one, and aborts a chunked body the moment the received bytes cross the same bound. Tests pin all three refusals plus a chunked body accepted at the limit.

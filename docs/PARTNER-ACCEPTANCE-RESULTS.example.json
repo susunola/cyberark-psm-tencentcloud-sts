@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "scope": "Partner lab acceptance; not vendor certification",
+  "source_commit": "REPLACE_WITH_EXACT_COMMIT",
+  "source_archive_sha256": "REPLACE_WITH_SHA256",
+  "tested_at_utc": null,
+  "environment": {
+    "pam_version": null,
+    "psm_version": null,
+    "cpm_version": null,
+    "windows_build": null,
+    "python_version": null,
+    "browser_version": null,
+    "driver_version": null,
+    "component_revision": null
+  },
+  "cases": [
+    {
+      "id": "AUTH-01",
+      "status": "pending",
+      "evidence_reference": null,
+      "notes": ""
+    },
+    {
+      "id": "LOGIN-01",
+      "status": "pending",
+      "evidence_reference": null,
+      "notes": ""
+    },
+    {
+      "id": "DENY-01",
+      "status": "pending",
+      "evidence_reference": null,
+      "notes": ""
+    },
+    {
+      "id": "REPLAY-01",
+      "status": "pending",
+      "evidence_reference": null,
+      "notes": ""
+    },
+    {
+      "id": "ISOLATE-01",
+      "status": "pending",
+      "evidence_reference": null,
+      "notes": ""
+    },
+    {
+      "id": "RECORD-01",
+      "status": "pending",
+      "evidence_reference": null,
+      "notes": ""
+    },
+    {
+      "id": "CLEANUP-01",
+      "status": "pending",
+      "evidence_reference": null,
+      "notes": ""
+    },
+    {
+      "id": "SECRET-01",
+      "status": "pending",
+      "evidence_reference": null,
+      "notes": ""
+    },
+    {
+      "id": "ROLLBACK-01",
+      "status": "pending",
+      "evidence_reference": null,
+      "notes": ""
+    },
+    {
+      "id": "CPM-01",
+      "status": "pending",
+      "evidence_reference": null,
+      "notes": ""
+    }
+  ],
+  "cleanup": {
+    "completed": false,
+    "evidence_reference": null,
+    "remaining_test_resources": []
+  },
+  "reviewer": null
+}

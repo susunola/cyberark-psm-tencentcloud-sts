@@ -341,8 +341,17 @@ class HardeningTests(unittest.TestCase):
                 for required in ('psm-tencentcloud-sts/pyproject.toml',
                                  'psm-tencentcloud-sts/requirements-dev.txt',
                                  'psm-tencentcloud-sts/requirements.lock.hashes.txt',
-                                 'psm-tencentcloud-sts/.pre-commit-config.yaml'):
+                                 'psm-tencentcloud-sts/.pre-commit-config.yaml',
+                                 'psm-tencentcloud-sts/docs/PARTNER-ACCEPTANCE.md',
+                                 'psm-tencentcloud-sts/docs/PARTNER-ACCEPTANCE.zh-CN.md',
+                                 'psm-tencentcloud-sts/docs/PARTNER-ACCEPTANCE-RESULTS.example.json',
+                                 'psm-tencentcloud-sts/tests/test_pvwa_https_contract.py'):
                     self.assertIn(required, names)
+                template = json.loads(archive.read('psm-tencentcloud-sts/docs/PARTNER-ACCEPTANCE-RESULTS.example.json'))
+                self.assertFalse(template['cleanup']['completed'])
+                self.assertEqual(len(template['cases']), 10)
+                self.assertEqual(len({case['id'] for case in template['cases']}), 10)
+                self.assertTrue(all(case['status'] == 'pending' and case['evidence_reference'] is None for case in template['cases']))
                 self.assertFalse(any(n.endswith('/settings.json') or '.git/' in n or '__pycache__' in n for n in names))
             locked = {}
             for raw in (ROOT / 'requirements.lock.txt').read_text().splitlines():

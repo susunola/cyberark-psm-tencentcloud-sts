@@ -4,6 +4,8 @@
 
 **从这里开始：[详细安装与使用手册](docs/INSTALLATION-AND-USAGE.zh-CN.md)** — 部署准备、Windows/IIS 安装、PVWA/PSM 配置、完整命令、轮换恢复与排错。
 
+**合作伙伴代测：[授权实验室验收交接说明](docs/PARTNER-ACCEPTANCE.zh-CN.md)** — 测试范围、证据要求及结果模板。
+
 腾讯云国际站控制台角色登录连接组件源码包，采用 AWS Console STS 同类架构：PVWA 授权 → PSM Web 注入 Vault 凭据 → 登录桥接服务调用 STS AssumeRole → 生成腾讯云角色登录签名 → PSM 浏览器进入控制台。
 
 ## 登录原理与整体流程
