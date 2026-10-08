@@ -82,7 +82,6 @@ select = [
     "RET",    # return
     "T20",    # print (allow in scripts/tests)
     "ARG",    # unused arguments
-    "PTH",    # pathlib
     "PLW",    # pylint warnings
     "PLE",    # pylint errors
 ]

@@ -2,7 +2,12 @@ import concurrent.futures
 import json
 import os
 import re
+import shutil
+import socket
+import ssl
+import subprocess
 import tempfile
+import threading
 import time
 import unittest
 import uuid
@@ -180,6 +185,140 @@ class RealRedisTests(unittest.TestCase):
             403,
         )
         sts.assert_called_once()
+
+
+# Minimal RESP3 HELLO reply; redis-py 5 negotiates protocol 3 on every connect.
+_HELLO3_REPLY = (
+    b"%7\r\n"
+    b"$6\r\nserver\r\n$5\r\nredis\r\n"
+    b"$7\r\nversion\r\n$5\r\n7.2.5\r\n"
+    b"$5\r\nproto\r\n:3\r\n"
+    b"$2\r\nid\r\n:1\r\n"
+    b"$4\r\nmode\r\n$10\r\nstandalone\r\n"
+    b"$4\r\nrole\r\n$6\r\nmaster\r\n"
+    b"$7\r\nmodules\r\n*0\r\n"
+)
+
+
+def _read_line(connection, buffer):
+    """Minimal RESP line reader for the fake TLS Redis endpoint."""
+    while b"\r\n" not in buffer:
+        data = connection.recv(4096)
+        if not data:
+            return None, buffer
+        buffer += data
+    line, buffer = buffer.split(b"\r\n", 1)
+    return line, buffer
+
+
+def _read_command(connection, buffer):
+    """Parse one RESP array (or inline command); return (parts, buffer)."""
+    line, buffer = _read_line(connection, buffer)
+    if line is None:
+        return None, buffer
+    if not line.startswith(b"*"):
+        return line.split(), buffer
+    parts = []
+    for _ in range(int(line[1:])):
+        header, buffer = _read_line(connection, buffer)
+        if header is None:
+            return None, buffer
+        length = int(header[1:])
+        while len(buffer) < length + 2:
+            data = connection.recv(4096)
+            if not data:
+                return None, buffer
+            buffer += data
+        parts.append(buffer[:length])
+        buffer = buffer[length + 2 :]
+    return parts, buffer
+
+
+@unittest.skipUnless(shutil.which("openssl"), "openssl is required to mint a throwaway CA")
+class TlsRedisTests(unittest.TestCase):
+    """End-to-end rediss:// handshake against a self-signed local endpoint.
+
+    The unit tests pin the ssl_* client options; this class proves the whole path —
+    CA pinning, hostname verification and the check() ping — against a real TLS socket.
+    """
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.directory = Path(directory.name)
+        for name in ("server", "other"):
+            subprocess.run(
+                [
+                    "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                    "-keyout", str(self.directory / f"{name}.key"),
+                    "-out", str(self.directory / f"{name}.crt"),
+                    "-days", "1", "-subj", "/CN=localhost",
+                    "-addext", "subjectAltName=DNS:localhost",
+                ],
+                check=True,
+                capture_output=True,
+            )
+
+    def start_server(self):
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(self.directory / "server.crt", self.directory / "server.key")
+        listener = socket.socket()
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        self.addCleanup(listener.close)
+
+        def serve():
+            while True:
+                try:
+                    raw, _ = listener.accept()
+                except OSError:
+                    return
+                threading.Thread(target=handle, args=(raw,), daemon=True).start()
+
+        def handle(raw):
+            try:
+                connection = context.wrap_socket(raw, server_side=True)
+                buffer = b""
+                while True:
+                    parts, buffer = _read_command(connection, buffer)
+                    if parts is None:
+                        return
+                    verb = parts[0].upper() if parts else b""
+                    if verb == b"PING":
+                        connection.sendall(b"+PONG\r\n")
+                    elif verb == b"HELLO":
+                        connection.sendall(_HELLO3_REPLY)
+                    else:
+                        connection.sendall(b"+OK\r\n")
+            except (OSError, ssl.SSLError):
+                return
+            finally:
+                raw.close()
+
+        threading.Thread(target=serve, daemon=True).start()
+        return listener.getsockname()[1]
+
+    def test_rediss_handshake_and_check_succeed_with_the_pinned_ca(self):
+        port = self.start_server()
+        store = configured_token_store(
+            {
+                "PSM_TC_REDIS_URL": f"rediss://localhost:{port}/0",
+                "PSM_TC_REDIS_CA_BUNDLE": str(self.directory / "server.crt"),
+            }
+        )
+        self.assertTrue(store.check())
+
+    def test_rediss_with_an_untrusted_ca_fails_closed(self):
+        port = self.start_server()
+        with self.assertRaises(TokenStoreError) as error:
+            configured_token_store(
+                {
+                    "PSM_TC_REDIS_URL": f"rediss://localhost:{port}/0",
+                    "PSM_TC_REDIS_CA_BUNDLE": str(self.directory / "other.crt"),
+                }
+            )
+        self.assertEqual(str(error.exception), "Token backend unavailable")
 
 
 if __name__ == "__main__":

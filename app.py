@@ -291,6 +291,9 @@ def create_app(
             return f'Tencent Cloud connection failed. Reference: {g.request_id}', 502
         finally:
             slots.release()
+            # Best-effort only: CPython does not scrub the str objects already parsed by
+            # Flask, so the real mitigation is the short-lived worker process. These
+            # reassignments only drop this frame's references.
             key = None
             secret_key = ''
         session.clear()
@@ -308,10 +311,16 @@ def create_app(
     return app
 
 
+def _environment_value(environment: Mapping[str, str], name: str) -> str | None:
+    """Read a raw override; empty and unset both mean 'use the default'."""
+    raw = environment.get(name, '')
+    return raw if raw else None
+
+
 def _environment_int(environment: Mapping[str, str], name: str, default: int) -> int:
     """Read an integer override, falling back to the documented default."""
-    raw = environment.get(name, '')
-    if not raw:
+    raw = _environment_value(environment, name)
+    if raw is None:
         return default
     try:
         return int(raw)
@@ -321,8 +330,8 @@ def _environment_int(environment: Mapping[str, str], name: str, default: int) ->
 
 def _environment_optional_int(environment: Mapping[str, str], name: str) -> int | None:
     """Read an optional integer override; None leaves the decision to the store."""
-    raw = environment.get(name, '')
-    if not raw:
+    raw = _environment_value(environment, name)
+    if raw is None:
         return None
     try:
         return int(raw)
@@ -331,8 +340,8 @@ def _environment_optional_int(environment: Mapping[str, str], name: str) -> int 
 
 
 def _environment_float(environment: Mapping[str, str], name: str, default: float) -> float:
-    raw = environment.get(name, '')
-    if not raw:
+    raw = _environment_value(environment, name)
+    if raw is None:
         return default
     try:
         return float(raw)
@@ -355,6 +364,10 @@ def main() -> None:
             issuance_wait=_environment_float(environment, 'PSM_TC_ISSUANCE_WAIT_SECONDS', DEFAULT_ISSUANCE_WAIT_SECONDS),
             identity_capacity=_environment_optional_int(environment, 'PSM_TC_IDENTITY_CAPACITY'),
         )
+    except KeyError as error:
+        # A missing variable name is a configuration fact, not a secret value; naming it
+        # is what makes a silent service failure diagnosable.
+        raise SystemExit(f'Bridge startup requires environment variable {error.args[0]}.') from None
     except Exception:  # noqa: BLE001 - never forward error text
         raise SystemExit('Bridge startup configuration invalid. Check service environment and settings.') from None
     make_server(app).run()

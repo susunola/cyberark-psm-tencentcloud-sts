@@ -1,13 +1,22 @@
 """PVWA v10-family REST adapter; no login/MFA bypass or automatic write retries."""
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 from urllib.parse import quote, urlsplit
 
 import requests
 
-from validate import MAX_FIELD_TEXT_LEN, MAX_IDENTIFIER_LEN, MAX_PVWA_TOKEN_LEN, is_credential_text, is_identifier, is_readable_text
+from validate import (
+    MAX_FIELD_TEXT_LEN,
+    MAX_IDENTIFIER_LEN,
+    MAX_PVWA_RESPONSE_BYTES,
+    MAX_PVWA_TOKEN_LEN,
+    is_credential_text,
+    is_identifier,
+    is_readable_text,
+)
 
 
 def _has_dot_segment(path: str) -> bool:
@@ -95,10 +104,25 @@ class Vault:
         try:
             response = self.session.request(method, self.url + path, json=payload,
                 headers={'Authorization': self.token, 'Content-Type': 'application/json', 'Accept': accept},
-                timeout=(5, 20), verify=self.ca, allow_redirects=False)
-            if not 200 <= response.status_code < 300:
-                raise VaultError('PVWA request denied or failed', response.status_code)
-            return response.json() if response.content else None
+                timeout=(5, 20), verify=self.ca, allow_redirects=False, stream=True)
+            try:
+                if not 200 <= response.status_code < 300:
+                    raise VaultError('PVWA request denied or failed', response.status_code)
+                # Every other inbound size in this codebase is bounded; the PVWA response
+                # must be too, or a compromised/abnormal PVWA can exhaust bridge memory.
+                declared = response.headers.get('Content-Length')
+                if declared is not None and (not declared.isdigit() or int(declared) > MAX_PVWA_RESPONSE_BYTES):
+                    raise VaultError('PVWA response exceeded size limit', response.status_code)
+                chunks, received = [], 0
+                for chunk in response.iter_content(chunk_size=65536):
+                    received += len(chunk)
+                    if received > MAX_PVWA_RESPONSE_BYTES:
+                        raise VaultError('PVWA response exceeded size limit', response.status_code)
+                    chunks.append(chunk)
+                body = b''.join(chunks)
+            finally:
+                response.close()
+            return json.loads(body) if body else None
         except VaultError:
             raise
         except Exception:  # noqa: BLE001 - never forward error text

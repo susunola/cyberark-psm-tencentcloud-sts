@@ -64,6 +64,13 @@ def validate_source(account: Mapping[str, Any], profile: str) -> dict[str, Any]:
 
 
 def prepare(cloud: Any, vault: Any, old_account_id: str, target: object, profile: str, operation: str) -> Ticket:
+    """Stage a replacement key pair for one target.
+
+    The spare-slot check below and the key creation are check-then-act: callers MUST
+    serialize concurrent prepare() calls for the same target (pamctl holds a Vault
+    operation lock; maintenance holds its journal). This layer deliberately keeps no
+    lock of its own so it stays usable without those drivers.
+    """
     if not re.fullmatch(r'[a-f0-9]{32}', operation):
         raise ValueError('Use a UUID hex operation ID')
     target = str(uin(target))
@@ -99,6 +106,7 @@ def prepare(cloud: Any, vault: Any, old_account_id: str, target: object, profile
         # Preserve old key and the new cloud key. Vault save may have succeeded despite timeout.
         raise LifecycleError('Preparation incomplete; old key retained. Reconcile cloud/Vault before retrying.') from None
     finally:
+        # Best-effort: drops this frame's reference; CPython does not scrub the str.
         new_key = None
     return Ticket(operation, target, old_account_id, new_account, old_sid, new_sid, profile)
 
@@ -155,6 +163,7 @@ def finalize(
         role_verifier(ticket.new_secret_id, secret, profile['role_arn'], 'rotate-' + ticket.operation,
                       profile['duration_seconds'], profile['region'])
     finally:
+        # Best-effort: drops this frame's reference; CPython does not scrub the str.
         secret = None
     # Reduce the interval between the verified role call and credential retirement.
     latest = {k['id']: k['status'] for k in cloud.keys(ticket.target_uin)}
@@ -237,5 +246,6 @@ def recover_ticket(cloud: Any, vault: Any, journal: Mapping[str, Any]) -> Ticket
     try:
         cloud.verify(new_sid, secret, target)
     finally:
+        # Best-effort: drops this frame's reference; CPython does not scrub the str.
         secret = None
     return Ticket(operation, target, old['id'], new['id'], props['TencentSecretId'], new_sid, journal['profile'])

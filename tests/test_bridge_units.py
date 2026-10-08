@@ -351,6 +351,19 @@ class StartupTests(unittest.TestCase):
             self.assertNotIn(str(error), message)
             self.assertTrue(raised.exception.__suppress_context__)
 
+    def test_a_missing_environment_variable_is_named_without_exposing_values(self):
+        environment = {key: value for key, value in STARTUP_ENVIRONMENT.items() if key != 'PSM_TC_PROXY_KEY'}
+        with (
+            patch('app.shared_environment', return_value=environment),
+            patch('app.load_settings', return_value=SETTINGS),
+            self.assertRaises(SystemExit) as raised,
+        ):
+            main()
+        message = str(raised.exception)
+        self.assertEqual(message, 'Bridge startup requires environment variable PSM_TC_PROXY_KEY.')
+        self.assertNotIn(SESSION_KEY, message)
+        self.assertTrue(raised.exception.__suppress_context__)
+
     def test_configuration_values_never_reach_the_startup_error(self):
         with (
             patch('app.shared_environment', return_value=STARTUP_ENVIRONMENT),

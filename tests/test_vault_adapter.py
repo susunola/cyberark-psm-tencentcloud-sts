@@ -3,10 +3,12 @@
 Every transport in this module is a fake. No test requires credentials or network access.
 """
 
+import json
 import unittest
 from unittest.mock import MagicMock
 
 from pam.vault import Vault, VaultError
+from validate import MAX_PVWA_RESPONSE_BYTES
 
 API_URL = "https://pvwa.example/PasswordVault/API"
 TOKEN = "FAKE-TOKEN"
@@ -26,11 +28,14 @@ class VaultTestCase(unittest.TestCase):
         return Vault(API_URL, TOKEN, session=transport), transport
 
     @staticmethod
-    def response(status_code=200, body=b"fake-body", json_value=None):
+    def response(status_code=200, body=None, json_value=None):
+        """Fake a streamed response; an omitted body defaults to the JSON value."""
+        if body is None:
+            body = json.dumps(json_value).encode() if json_value is not None else b""
         response = MagicMock()
         response.status_code = status_code
-        response.content = body
-        response.json.return_value = json_value
+        response.headers = {"Content-Length": str(len(body))}
+        response.iter_content.return_value = [body] if body else []
         return response
 
     @staticmethod
@@ -112,7 +117,7 @@ class VaultRequestTests(VaultTestCase):
 
     def test_successful_request_returns_json_and_pins_transport_arguments(self):
         vault, transport = self.transport_vault()
-        transport.request.return_value = self.response(200, b'{"id": "1_2"}', {"id": "1_2"})
+        transport.request.return_value = self.response(200, json_value={"id": "1_2"})
         self.assertEqual(vault.request("GET", "/Accounts/1_2"), {"id": "1_2"})
         args, kwargs = transport.request.call_args
         self.assertEqual(args, ("GET", API_URL + "/Accounts/1_2"))
@@ -166,15 +171,54 @@ class VaultRequestTests(VaultTestCase):
     def test_malformed_json_is_sanitized(self):
         vault, transport = self.transport_vault()
         response = self.response(200, b"<html>not json</html>", None)
-        response.json.side_effect = ValueError("FAKE-JSON-TEXT")
         transport.request.return_value = response
         with self.assertRaises(VaultError) as error:
             vault.request("GET", "/Accounts")
-        self.assertNotIn("FAKE-JSON-TEXT", str(error.exception))
+        self.assertIn("PVWA request failed", str(error.exception))
+
+    def test_declared_oversized_response_is_rejected_before_the_body_is_read(self):
+        vault, transport = self.transport_vault()
+        response = self.response(200, json_value={"ok": True})
+        response.headers = {"Content-Length": str(MAX_PVWA_RESPONSE_BYTES + 1)}
+        transport.request.return_value = response
+        with self.assertRaises(VaultError) as error:
+            vault.request("GET", "/Accounts")
+        self.assertEqual(str(error.exception), "PVWA response exceeded size limit")
+        self.assertEqual(error.exception.status, 200)
+        response.iter_content.assert_not_called()
+
+    def test_a_non_numeric_content_length_is_rejected(self):
+        vault, transport = self.transport_vault()
+        response = self.response(200, json_value={"ok": True})
+        response.headers = {"Content-Length": VENDOR_TEXT}
+        transport.request.return_value = response
+        with self.assertRaises(VaultError) as error:
+            vault.request("GET", "/Accounts")
+        self.assertEqual(str(error.exception), "PVWA response exceeded size limit")
+        self.assertNotIn(VENDOR_TEXT, str(error.exception))
+
+    def test_a_streamed_body_beyond_the_limit_is_rejected(self):
+        vault, transport = self.transport_vault()
+        response = self.response(200, json_value={"ok": True})
+        del response.headers["Content-Length"]
+        response.iter_content.return_value = [b"x" * 65536] * (MAX_PVWA_RESPONSE_BYTES // 65536 + 1)
+        transport.request.return_value = response
+        with self.assertRaises(VaultError) as error:
+            vault.request("GET", "/Accounts")
+        self.assertEqual(str(error.exception), "PVWA response exceeded size limit")
+
+    def test_a_chunked_body_at_the_limit_is_accepted(self):
+        vault, transport = self.transport_vault()
+        body = json.dumps({"value": ["x" * 65530]}).encode()
+        response = self.response(200, body)
+        response.headers = {"Content-Length": str(len(body))}
+        response.iter_content.return_value = [body[i : i + 65536] for i in range(0, len(body), 65536)]
+        transport.request.return_value = response
+        self.assertEqual(vault.request("GET", "/Accounts"), {"value": ["x" * 65530]})
 
     def test_request_headers_payload_and_accept_override(self):
         vault, transport = self.transport_vault()
-        transport.request.return_value = self.response(200, b"fake-body", {"ok": True})
+        transport.request.return_value = self.response(200, json_value={"ok": True})
         vault.request("POST", "/Accounts", {"name": "FAKE-ACCOUNT"}, accept="text/plain")
         kwargs = transport.request.call_args.kwargs
         self.assertEqual(kwargs["json"], {"name": "FAKE-ACCOUNT"})
@@ -188,7 +232,7 @@ class CapabilityProbeTests(VaultTestCase):
 
         def dispatch(method, url, **kwargs):
             status, body = plan.get(url[len(API_URL) :], (200, {"value": []}))
-            return self.response(status, b"fake-body", body)
+            return self.response(status, json_value=body)
 
         transport.request.side_effect = dispatch
         self.probe_transport = transport
