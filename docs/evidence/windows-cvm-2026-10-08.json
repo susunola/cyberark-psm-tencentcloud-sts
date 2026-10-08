@@ -69,16 +69,47 @@
         "uninstall-preserves-files"
       ],
       "initial_attempt": "passed with stderr fix"
+    },
+    {
+      "os": "Windows Server 2012 R2 Datacenter English",
+      "build": "9600",
+      "powershell": "5.1.14409.2001",
+      "image_id": "img-2tddq003",
+      "source_commit": "3e78aec",
+      "result": "pass",
+      "checks": [
+        "fetch-winsw",
+        "write-acceptance-settings",
+        "assert-tampered-winsw-refused",
+        "install-service",
+        "assert-installer-acls",
+        "assert-readiness-probe",
+        "assert-tampered-form-refused",
+        "service-restart",
+        "uninstall-preserves-files"
+      ],
+      "initial_attempt": "TAT START_FAILED: default working directory absent; retried with WorkingDirectory=C:\\",
+      "source_patch": "none; harness uses .NET ZipFile for extraction"
     }
   ],
-  "cleanup": "All three test CVMs terminated; borrowed security group unchanged",
+  "cleanup": "All four test CVMs terminated; borrowed security group unchanged",
   "not_tested": [
     "IIS/ARR authentication and TLS",
     "CyberArk PSM/PVWA integration",
     "Browser console login",
     "Recording/playback",
-    "Windows Server 2012 R2 and older",
+    "Original Windows Server 2012 and older",
     "Other Python versions on these CVMs"
   ],
-  "checked_in_fix": "scripts/ci/install-service.ps1"
+  "checked_in_fix": "scripts/ci/install-service.ps1",
+  "original_windows_2012": {
+    "result": "blocked_missing_image",
+    "public_image_regions_checked": [
+      "ap-singapore",
+      "ap-hongkong",
+      "ap-tokyo"
+    ],
+    "account_visible_images_region_checked": "ap-singapore",
+    "no_non_r2_2012_image_found": true
+  }
 }

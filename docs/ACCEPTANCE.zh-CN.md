@@ -8,7 +8,7 @@
 |---|---|---|
 | 离线测试 | 测试输出、提交、Python、依赖锁 | 本地执行，见交付报告 |
 | CI | 当前提交的 Actions 结果 | 查看工作流 |
-| Windows 服务 | WinSW 版本/hash、安装启动卸载、ACL | **2026-10-08 在腾讯云真实 Windows Server 2022／2019／2016 CVM 上通过**，Python 3.13.7／PowerShell 5.1／WinSW 2.12.0；见[实测报告](WINDOWS-CVM-ACCEPTANCE.zh-CN.md) |
+| Windows 服务 | WinSW 版本/hash、安装启动卸载、ACL | **2026-10-08 在腾讯云真实 Windows Server 2022／2019／2016／2012 R2 CVM 上通过**，Python 3.13.7／PowerShell 5.1／WinSW 2.12.0；见[实测报告](WINDOWS-CVM-ACCEPTANCE.zh-CN.md) |
 | IIS 认证 | 匿名拒绝、真实 Windows 身份、头覆盖、管线顺序 | 待现场 |
 | PSM 连接 | PAM/PSM、框架、浏览器/驱动、组件导出 | 待现场 |
 | 腾讯云登录 | 角色信任、权限、允许控制台登录、身份核对 | **部分已验证（2026-10-07）**：国际站账号上对 `ConsoleLogin=1` 的探针角色 `AssumeRole` 成功，且 300 秒请求被接受并返回 `expires in 300s`。浏览器端控制台登录仍待现场。 |

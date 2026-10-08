@@ -12,11 +12,13 @@ This matrix describes this repository's evidence, not CyberArk/Idira certificati
 | Windows Server 2022 | **Tested on real Tencent Cloud CVM, 2026-10-08**: Datacenter English x64, build 20348, Python 3.13.7, PowerShell 5.1, WinSW 2.12.0; bridge installation/service checks passed | PSM/Connector release-specific OS support, IIS authentication and end-to-end PSM acceptance still required |
 | Windows Server 2019 | **Tested on real Tencent Cloud CVM, 2026-10-08**: Datacenter English x64, build 17763; same Python/PowerShell/WinSW combination and bridge checks passed | Same vendor OS check and IIS/PSM acceptance required |
 | Windows Server 2016 | **Tested on real Tencent Cloud CVM, 2026-10-08**: Datacenter English x64, build 14393; same Python/PowerShell/WinSW combination and bridge checks passed | Same vendor OS check and IIS/PSM acceptance required |
-| Windows Server 2012 R2 or earlier | Not tested; no compatibility claim | No deployment recommendation from this repository |
+| Windows Server 2012 R2 | **Tested on real Tencent Cloud CVM, 2026-10-08**: Datacenter English x64, build 9600, Python 3.13.7, PowerShell 5.1.14409.2001, WinSW 2.12.0; bridge installation/service checks passed | Vendor OS check and IIS/PSM acceptance still required; other Python versions not tested on this host |
+| Windows Server 2012 (original, non-R2) | **Not tested: no available image found** in the public catalogs of Singapore/Hong Kong/Tokyo or account-visible Singapore images | Requires an authorized original-2012 custom/shared image before real testing; R2 results do not apply |
+| Windows Server 2008 R2 or earlier | Not tested; no compatibility claim | No deployment recommendation from this repository |
 | Windows 10/11 | Not tested as a PSM deployment host | Not a supported PSM production host claimed by this repository |
 | Server Core / ARM64 | Not validated | No deployment support claimed |
 
-See the [real Windows CVM acceptance report](WINDOWS-CVM-ACCEPTANCE.md) for image IDs, checks, the PowerShell 5.1 fix and confirmed cleanup. These CVM results cover Python 3.13.7 only.
+See the [real Windows CVM acceptance report](WINDOWS-CVM-ACCEPTANCE.md) for image IDs, checks, the PowerShell 5.1 fix and confirmed cleanup. These four CVM results cover Python 3.13.7 only.
 
 Use a Windows x64 host capable of running the native PSM GUI/browser stack. The supported deployment combination must be the intersection of the vendor's specific PSM/Connector OS matrix, Python 3.11–3.14, the reviewed WinSW/IIS components and this plugin's acceptance results. A newer Windows release is not automatically a supported PSM host. PAM SaaS still needs the appropriate customer-side Connector/PSM capability.
 

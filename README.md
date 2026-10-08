@@ -175,7 +175,7 @@ Version 0.3.0 adds `scripts/pamctl.py`: CAM/CVM discovery, guest onboarding prop
 
 ## Windows versions
 
-Automated source checks run on **Windows Server 2025 (`windows-2025`) with Python 3.11–3.14**. **Windows Server 2022/2019/2016 passed real Tencent Cloud CVM bridge installation/service acceptance on 2026-10-08**, using Python 3.13.7, Windows PowerShell 5.1 and WinSW 2.12.0. See the [CVM test report](docs/WINDOWS-CVM-ACCEPTANCE.md). Deployment remains subject to the installed PSM/Connector's vendor support matrix. No Windows version has completed this plugin's end-to-end PSM/IIS acceptance. The Windows CI also exercises installation, service readiness and ACLs with Python 3.13. Windows desktop, Server Core and ARM64 deployment support is not claimed. See the [Windows compatibility matrix](docs/DEPLOYMENT.md).
+Automated source checks run on **Windows Server 2025 (`windows-2025`) with Python 3.11–3.14**. **Windows Server 2022/2019/2016/2012 R2 passed real Tencent Cloud CVM bridge installation/service acceptance on 2026-10-08**, using Python 3.13.7, Windows PowerShell 5.1 and WinSW 2.12.0. See the [CVM test report](docs/WINDOWS-CVM-ACCEPTANCE.md). Deployment remains subject to the installed PSM/Connector's vendor support matrix. No Windows version has completed this plugin's end-to-end PSM/IIS acceptance. The Windows CI also exercises installation, service readiness and ACLs with Python 3.13. Windows desktop, Server Core and ARM64 deployment support is not claimed. See the [Windows compatibility matrix](docs/DEPLOYMENT.md).
 
 ## Windows PSM deployment
 

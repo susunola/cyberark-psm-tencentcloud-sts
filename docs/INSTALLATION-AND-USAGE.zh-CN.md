@@ -20,7 +20,7 @@
 10. [升级、回滚、卸载](#maintenance)
 11. [排错和验收](#troubleshooting)
 
-选择 Windows 主机前先核对[部署兼容矩阵](DEPLOYMENT.zh-CN.md)，Windows 2022／2019／2016 已使用 Python 3.13.7 在腾讯云真实 CVM 上通过 Bridge 安装／服务检查，见[实测报告](WINDOWS-CVM-ACCEPTANCE.zh-CN.md)。CI、Bridge 服务验收和 PSM 端到端验收分别记录。
+选择 Windows 主机前先核对[部署兼容矩阵](DEPLOYMENT.zh-CN.md)，Windows 2022／2019／2016／2012 R2 已使用 Python 3.13.7 在腾讯云真实 CVM 上通过 Bridge 安装／服务检查，见[实测报告](WINDOWS-CVM-ACCEPTANCE.zh-CN.md)。CI、Bridge 服务验收和 PSM 端到端验收分别记录。
 
 <a id="preparation"></a>
 ## 1. 架构与部署准备

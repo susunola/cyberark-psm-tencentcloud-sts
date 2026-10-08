@@ -10,7 +10,7 @@ The local suite includes real loopback HTTP requests to Waitress, with mocked ST
 |---|---|---|
 | Offline unit tests | Test output, source commit, Python and dependency lock | Run locally; see delivery report |
 | Windows/Linux CI | GitHub Actions run for this commit | Check workflow run |
-| Windows service | WinSW version/hash, installation/start/stop/uninstall, ACL review | **Passed 2026-10-08 on real Tencent Cloud Windows Server 2022/2019/2016 CVMs**, Python 3.13.7 / PowerShell 5.1 / WinSW 2.12.0; see [CVM report](WINDOWS-CVM-ACCEPTANCE.md) |
+| Windows service | WinSW version/hash, installation/start/stop/uninstall, ACL review | **Passed 2026-10-08 on real Tencent Cloud Windows Server 2022/2019/2016/2012 R2 CVMs**, Python 3.13.7 / PowerShell 5.1 / WinSW 2.12.0; see [CVM report](WINDOWS-CVM-ACCEPTANCE.md) |
 | IIS authentication | Anonymous denial, genuine Windows identity, header overwrite, pipeline ordering | Pending environment |
 | PSM launch | PAM/PSM version, browser/driver version, imported component export | Pending environment |
 | Cloud role login | CAM trust, AssumeRole policy, console-enabled role, destination/identity evidence | **Partially verified 2026-10-07** on an international account: AssumeRole succeeded for a probe role with `ConsoleLogin=1` and a 300-second request was accepted and returned `expires in 300s`. Console-side login in a browser is still pending. |
