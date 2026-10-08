@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from federation import assume_role
+from federation import DEFAULT_SITE, assume_role
 from pam.cloud import KEY_STATUSES, uin
 from validate import MAX_ACCOUNT_FIELD_LEN, is_identifier, is_readable_text
 
@@ -160,8 +160,10 @@ def finalize(
     secret = vault.secret(ticket.new_account, 'Verify staged Tencent Cloud rotation ' + ticket.operation)
     try:
         cloud.verify(ticket.new_secret_id, secret, ticket.target_uin)
-        role_verifier(ticket.new_secret_id, secret, profile['role_arn'], 'rotate-' + ticket.operation,
-                      profile['duration_seconds'], profile['region'])
+        role_verifier(
+            ticket.new_secret_id, secret, profile['role_arn'], 'rotate-' + ticket.operation,
+            profile['duration_seconds'], profile['region'], profile.get('site', DEFAULT_SITE),
+        )
     finally:
         # Best-effort: drops this frame's reference; CPython does not scrub the str.
         secret = None

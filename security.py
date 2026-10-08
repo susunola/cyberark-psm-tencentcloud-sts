@@ -234,10 +234,14 @@ class RedisTokenStore:
             raise TokenStoreError('Token backend unavailable') from None
 
 
-def configured_token_store(environment: Mapping[str, str]) -> TokenStore | RedisTokenStore:
+def configured_token_store(
+    environment: Mapping[str, str],
+    identity_capacity: int | None = None,
+) -> TokenStore | RedisTokenStore:
+    """Build the process token store; identity_capacity is honoured for both backends."""
     url = environment.get('PSM_TC_REDIS_URL')
     if not url:
-        return TokenStore()
+        return TokenStore(identity_capacity=identity_capacity)
     parsed = urlsplit(url)
     if parsed.scheme != 'rediss' or not parsed.hostname or parsed.query or parsed.fragment or not re.fullmatch(r'/[0-9]+', parsed.path or '/0'):
         raise ValueError('Use a TLS Redis URL without query overrides')
@@ -250,7 +254,11 @@ def configured_token_store(environment: Mapping[str, str]) -> TokenStore | Redis
         max_connections=10, decode_responses=True, ssl_cert_reqs='required', ssl_check_hostname=True,
         ssl_ca_certs=environment.get('PSM_TC_REDIS_CA_BUNDLE') or None,
         retry=Retry(NoBackoff(), 0), retry_on_error=[])
-    store = RedisTokenStore(client, environment.get('PSM_TC_REDIS_NAMESPACE', 'psm-tencent'))
+    store = RedisTokenStore(
+        client,
+        environment.get('PSM_TC_REDIS_NAMESPACE', 'psm-tencent'),
+        identity_capacity=identity_capacity,
+    )
     store.check()
     return store
 

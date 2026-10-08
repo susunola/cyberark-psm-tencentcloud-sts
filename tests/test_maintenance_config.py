@@ -250,10 +250,10 @@ class MaintenanceRunTests(unittest.TestCase):
         )
         self.cloud.verify.assert_called_once_with("old-id", "FAKE-SECRET", "123")
         role.assert_called_once()
-        secret_id, secret, arn, session_name, duration, region = role.call_args.args
+        secret_id, secret, arn, session_name, duration, region, site = role.call_args.args
         self.assertEqual(
-            (secret_id, secret, arn, duration, region),
-            ("old-id", "FAKE-SECRET", "qcs::cam::uin/123:roleName/ReadOnly", 300, "ap-guangzhou"),
+            (secret_id, secret, arn, duration, region, site),
+            ("old-id", "FAKE-SECRET", "qcs::cam::uin/123:roleName/ReadOnly", 300, "ap-guangzhou", "intl"),
         )
         self.assertRegex(session_name, r"^verify-[0-9a-f]{32}$")
         self.assertNotIn("FAKE-SECRET", repr(results))

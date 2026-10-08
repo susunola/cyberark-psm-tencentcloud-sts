@@ -119,3 +119,58 @@ class AssumeRoleSiteTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class RoleVerifierSiteTests(unittest.TestCase):
+    def test_finalize_forwards_profile_site_to_role_verifier(self):
+        from unittest.mock import MagicMock
+
+        from pam.lifecycle import Ticket, finalize
+
+        ticket = Ticket(
+            operation='a' * 32,
+            target_uin='123',
+            old_account='old-account',
+            new_account='new-account',
+            old_secret_id='old-id',
+            new_secret_id='new-id',
+            profile='readonly',
+        )
+        cloud = MagicMock()
+        active_pair = [
+            {'id': 'old-id', 'status': 'Active', 'description': ''},
+            {'id': 'new-id', 'status': 'Active', 'description': ''},
+        ]
+        retired_pair = [
+            {'id': 'old-id', 'status': 'Inactive', 'description': ''},
+            {'id': 'new-id', 'status': 'Active', 'description': ''},
+        ]
+        cloud.keys.side_effect = [active_pair, active_pair, retired_pair]
+        vault = MagicMock()
+        vault.account.side_effect = [
+            {
+                'id': 'old-account',
+                'safeName': 'S', 'platformId': 'P', 'userName': 'u', 'address': 'a',
+                'platformAccountProperties': {'TencentSecretId': 'old-id', 'TencentRoleProfile': 'readonly'},
+            },
+            {
+                'id': 'new-account',
+                'safeName': 'S', 'platformId': 'P', 'userName': 'u', 'address': 'a',
+                'platformAccountProperties': {'TencentSecretId': 'new-id', 'TencentRoleProfile': 'readonly'},
+            },
+        ]
+        vault.secret.return_value = 'FAKE-SECRET'
+        verifier = MagicMock()
+        settings = {
+            'profiles': {
+                'readonly': {
+                    'allowed_secret_ids': ['old-id', 'new-id'],
+                    'role_arn': 'qcs::cam::uin/1:roleName/R',
+                    'duration_seconds': 60,
+                    'region': 'ap-beijing',
+                    'site': 'china',
+                }
+            }
+        }
+        finalize(cloud, vault, ticket, settings, confirmed_cutover=True, role_verifier=verifier)
+        self.assertEqual(verifier.call_args.args[-1], 'china')

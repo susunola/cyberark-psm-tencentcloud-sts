@@ -16,7 +16,7 @@ from flask import Flask, Response, abort, g, redirect, render_template_string, r
 from werkzeug.exceptions import HTTPException
 
 from configuration import load_settings, validate_settings
-from federation import assume_role, login_url
+from federation import DEFAULT_SITE, assume_role, login_url
 from pam.audit import event as audit_event
 from security import (
     TokenStore,
@@ -275,13 +275,13 @@ def create_app(
             try:
                 creds = sts(
                     sid, secret_key, profile['role_arn'], name,
-                    profile['duration_seconds'], profile['region'], profile.get('site', 'intl'),
+                    profile['duration_seconds'], profile['region'], profile.get('site', DEFAULT_SITE),
                 )
             finally:
                 # Timed even when the call raises: a failing STS is exactly when the
                 # operator needs to know whether it was fast, slow or unreachable.
                 g.sts_ms = int((time.monotonic() - started) * 1000)
-            url = login_url(creds, profile['destination'], site=profile.get('site', 'intl'))
+            url = login_url(creds, profile['destination'], site=profile.get('site', DEFAULT_SITE))
         except (HTTPException, TokenStoreError):
             # A token-backend outage must keep its own 503/Retry-After contract.
             raise

@@ -109,6 +109,13 @@ class SecurityCoverage(unittest.TestCase):
         with self.assertRaises(TokenStoreError):
             store.check()
 
+    def test_configured_token_store_forwards_identity_capacity(self):
+        store = configured_token_store({}, identity_capacity=5)
+        self.assertIsInstance(store, TokenStore)
+        self.assertEqual(store.identity_capacity, 5)
+        # In-memory default still derives a bound when unset.
+        self.assertEqual(configured_token_store({}).identity_capacity, min(3, 1000))
+
     def test_configured_token_store_requires_tls(self):
         self.assertIsInstance(configured_token_store({}), TokenStore)
         with self.assertRaises(ValueError):

@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from federation import assume_role
+from federation import DEFAULT_SITE, assume_role
 from pam.cloud import uin
 from pam.files import private_output, save_json
 from pam.lifecycle import prepare
@@ -93,6 +93,7 @@ def run(
                     role_verifier(
                         sid, secret, profile['role_arn'], 'verify-' + uuid.uuid4().hex,
                         profile['duration_seconds'], profile['region'],
+                        profile.get('site', DEFAULT_SITE),
                     )
                 finally:
                     secret = None
