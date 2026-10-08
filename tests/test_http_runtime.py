@@ -43,6 +43,7 @@ class HttpRuntimeTests(unittest.TestCase):
             raise AssertionError('HTTP test server did not stop')
         cls.server.task_dispatcher.shutdown()
         cls.server.close()
+        cls.server.asyncore.close_all(map=cls.server._map)
         if cls.server_errors:
             raise AssertionError('HTTP test server failed') from cls.server_errors[0]
 

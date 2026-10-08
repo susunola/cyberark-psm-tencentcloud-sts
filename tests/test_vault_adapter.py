@@ -755,6 +755,20 @@ class AccountLookupTests(VaultTestCase):
             self.vault.find_rotation_accounts(operation)
         self.assertEqual(str(error.exception), "Incomplete recovery search; inspect PVWA inventory")
 
+    def test_rotation_recovery_refuses_a_next_page_even_without_count(self):
+        # A partial inventory must never authorize recovery cleanup or a retry.
+        operation = "a" * 32
+        for count in (None, 0, 1):
+            body = {"value": [{"id": "1_2", "name": "tc-rotation-" + operation}],
+                    "nextLink": "https://untrusted.invalid/next"}
+            if count is not None:
+                body["count"] = count
+            self.vault.request.return_value = body
+            with self.subTest(count=count), self.assertRaises(VaultError):
+                self.vault.find_rotation_accounts(operation)
+        self.assertEqual(self.vault.request.call_count, 3)
+        self.vault.request.assert_called_with("GET", "/Accounts?search=tc-rotation-" + operation + "&limit=1000")
+
     def test_find_accounts_by_name_filters_name_and_safe(self):
         value = [
             {"id": "1_2", "name": "host-1", "safeName": "Guests"},

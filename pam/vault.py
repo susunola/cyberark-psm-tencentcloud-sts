@@ -272,7 +272,7 @@ class Vault:
         result = self.request('GET', '/Accounts?search=' + name + '&limit=1000')
         if not isinstance(result, dict) or not isinstance(result.get('value'), list):
             raise VaultError('Unsupported account search response')
-        if result.get('count', len(result['value'])) > len(result['value']):
+        if result.get('nextLink') or result.get('count', len(result['value'])) > len(result['value']):
             raise VaultError('Incomplete recovery search; inspect PVWA inventory')
         entries = [entry for entry in result['value'] if isinstance(entry, dict)]
         return [entry for entry in entries if entry.get('name') == name]

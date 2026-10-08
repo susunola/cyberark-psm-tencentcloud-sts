@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refuse paginated PVWA rotation recovery results even when the response omits or understates the record count. Recovery cannot treat a partial account inventory as complete; regression tests cover all three count variants without following the supplied next-page URL.
+
 - Bound the PVWA response body, closing the last unbounded inbound size. Every other inbound byte stream already had a `MAX_*` ceiling, but `Vault.request` parsed `response.json()` with no limit, so a compromised or abnormal PVWA could exhaust bridge memory. The adapter now streams with `stream=True`, rejects a declared `Content-Length` above `MAX_PVWA_RESPONSE_BYTES` (1 MiB) before reading the body, rejects a non-numeric one, and aborts a chunked body the moment the received bytes cross the same bound. Tests pin all three refusals plus a chunked body accepted at the limit.
 - Name the missing environment variable on startup failure. `main()` previously collapsed every startup error into one generic sentence, so a service that failed to start gave operations nothing to act on. A `KeyError` now exits with the missing variable's name - a configuration fact, not a secret value - while every other cause still collapses into the generic message, and the tests that pin value secrecy are unchanged.
 - Test the production TLS Redis path end to end. The `rediss://` client options were only asserted as constructor kwargs, and CI's Redis container speaks plain `redis://`, so the handshake the production deployment actually performs had no coverage. `TlsRedisTests` mints a throwaway self-signed CA with openssl, serves a minimal RESP3 endpoint over a real TLS socket, and proves `configured_token_store` succeeds with the pinned CA and fails closed with an untrusted one.

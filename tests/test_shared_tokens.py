@@ -266,37 +266,56 @@ class TlsRedisTests(unittest.TestCase):
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind(("127.0.0.1", 0))
         listener.listen()
-        self.addCleanup(listener.close)
+        listener.settimeout(0.2)
+        stopped = threading.Event()
+        workers = []
 
         def serve():
-            while True:
+            while not stopped.is_set():
                 try:
                     raw, _ = listener.accept()
+                except TimeoutError:
+                    continue
                 except OSError:
                     return
-                threading.Thread(target=handle, args=(raw,), daemon=True).start()
+                raw.settimeout(1)
+                worker = threading.Thread(target=handle, args=(raw,), daemon=True)
+                workers.append(worker)
+                worker.start()
 
         def handle(raw):
             try:
-                connection = context.wrap_socket(raw, server_side=True)
-                buffer = b""
-                while True:
-                    parts, buffer = _read_command(connection, buffer)
-                    if parts is None:
-                        return
-                    verb = parts[0].upper() if parts else b""
-                    if verb == b"PING":
-                        connection.sendall(b"+PONG\r\n")
-                    elif verb == b"HELLO":
-                        connection.sendall(_HELLO3_REPLY)
-                    else:
-                        connection.sendall(b"+OK\r\n")
+                with context.wrap_socket(raw, server_side=True) as connection:
+                    buffer = b""
+                    while True:
+                        parts, buffer = _read_command(connection, buffer)
+                        if parts is None:
+                            return
+                        verb = parts[0].upper() if parts else b""
+                        if verb == b"PING":
+                            connection.sendall(b"+PONG\r\n")
+                        elif verb == b"HELLO":
+                            connection.sendall(_HELLO3_REPLY)
+                        else:
+                            connection.sendall(b"+OK\r\n")
             except (OSError, ssl.SSLError):
                 return
             finally:
                 raw.close()
 
-        threading.Thread(target=serve, daemon=True).start()
+        server = threading.Thread(target=serve, daemon=True)
+        server.start()
+
+        def stop():
+            stopped.set()
+            listener.close()
+            server.join(timeout=2)
+            for worker in workers:
+                worker.join(timeout=2)
+            self.assertFalse(server.is_alive(), "TLS listener did not stop")
+            self.assertFalse(any(worker.is_alive() for worker in workers), "TLS handlers did not stop")
+
+        self.addCleanup(stop)
         return listener.getsockname()[1]
 
     def test_rediss_handshake_and_check_succeed_with_the_pinned_ca(self):
@@ -307,6 +326,7 @@ class TlsRedisTests(unittest.TestCase):
                 "PSM_TC_REDIS_CA_BUNDLE": str(self.directory / "server.crt"),
             }
         )
+        self.addCleanup(store.client.close)
         self.assertTrue(store.check())
 
     def test_rediss_with_an_untrusted_ca_fails_closed(self):
