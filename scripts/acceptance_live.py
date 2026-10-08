@@ -324,6 +324,7 @@ def main() -> None:
     parser.add_argument('--region', default='ap-singapore')
     parser.add_argument('--credentials-file', type=Path, help='file holding the caller AK/SK')
     parser.add_argument('--destination', default='https://console.tencentcloud.com/')
+    parser.add_argument('--site', default='intl', choices=('intl', 'china'))
     parser.add_argument(
         '--provision',
         action='store_true',
@@ -395,7 +396,7 @@ def main() -> None:
             )
 
         # Exercise the real signing path with real temporary credentials.
-        real_url = login_url(working, args.destination)
+        real_url = login_url(working, args.destination, site=args.site)
         print(f'  login URL          : host={urlsplit(real_url).hostname} (URL never printed)')
         status, location = probe_callback(real_url)
         bad_status, bad_location = probe_callback(tamper(real_url))

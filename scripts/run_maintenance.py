@@ -30,6 +30,7 @@ def main() -> None:
             os.environ['TENCENTCLOUD_SECRET_ID'],
             os.environ['TENCENTCLOUD_SECRET_KEY'],
             max_users=int(max_users),
+            site=os.environ.get('PSM_TC_SITE') or 'intl',
         )
         vault = Vault(os.environ['PVWA_API_URL'], os.environ['PVWA_TOKEN'], ca=os.environ.get('PVWA_CA_BUNDLE') or True)
         result = run(read_json(args.jobs), load_settings(args.settings), args.state_dir, cloud, vault)

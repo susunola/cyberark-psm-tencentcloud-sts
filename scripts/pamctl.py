@@ -31,6 +31,7 @@ def cloud() -> Cloud:
         os.environ['TENCENTCLOUD_SECRET_ID'],
         os.environ['TENCENTCLOUD_SECRET_KEY'],
         max_users=int(max_users),
+        site=os.environ.get('PSM_TC_SITE') or 'intl',
     )
 
 

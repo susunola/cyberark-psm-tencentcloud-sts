@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from federation import FederationError, validate_region
+from federation import DEFAULT_SITE, FederationError, validate_region, validate_site
 from validate import (
     MAX_CREDENTIAL_ID_LEN,
     MAX_INVENTORY_INSTANCES,
@@ -71,6 +71,7 @@ class Cloud:
         secret_key: str,
         region: str = 'ap-singapore',
         max_users: int = DEFAULT_MAX_CAM_USERS,
+        site: str = DEFAULT_SITE,
     ) -> None:
         from tencentcloud.cam.v20190116.cam_client import CamClient
         from tencentcloud.common.credential import Credential
@@ -78,6 +79,8 @@ class Cloud:
         from tencentcloud.common.profile.http_profile import HttpProfile
 
         validate_region(region)
+        chosen = validate_site(site)
+        self.site = chosen
         if isinstance(max_users, bool) or not isinstance(max_users, int):
             raise ValueError('CAM sub-user bound must be an integer')
         if not 1 <= max_users <= MAX_CAM_USERS_CEILING:
@@ -85,7 +88,7 @@ class Cloud:
         self.max_users = max_users
         self.credential = Credential(secret_id, secret_key)
         self.region = region
-        self.cam = CamClient(self.credential, region, ClientProfile(httpProfile=HttpProfile(endpoint='cam.intl.tencentcloudapi.com', reqTimeout=15)))
+        self.cam = CamClient(self.credential, region, ClientProfile(httpProfile=HttpProfile(endpoint=chosen.cam_endpoint, reqTimeout=15)))
 
     @staticmethod
     def call(function: Any, request: Any) -> Any:
@@ -185,7 +188,7 @@ class Cloud:
         from tencentcloud.sts.v20180813 import models, sts_client
 
         client = sts_client.StsClient(Credential(secret_id, secret_key), self.region,
-            ClientProfile(httpProfile=HttpProfile(endpoint='sts.intl.tencentcloudapi.com', reqTimeout=15)))
+            ClientProfile(httpProfile=HttpProfile(endpoint=self.site.sts_endpoint, reqTimeout=15)))
         identity = self.call(client.GetCallerIdentity, models.GetCallerIdentityRequest())
         if str(identity.UserId) != target:
             raise FederationError('Credential belongs to a different identity')
@@ -210,7 +213,7 @@ class Cloud:
                 'console_login': display_flag(user.ConsoleLogin), 'keys': self.keys(user.Uin)})
         for region in regions:
             client = cvm_client.CvmClient(self.credential, region,
-                ClientProfile(httpProfile=HttpProfile(endpoint='cvm.intl.tencentcloudapi.com', reqTimeout=15)))
+                ClientProfile(httpProfile=HttpProfile(endpoint=self.site.cvm_endpoint, reqTimeout=15)))
             offset, expected = 0, None
             seen: set[str] = set()
             for _page in range(MAX_INVENTORY_PAGES):

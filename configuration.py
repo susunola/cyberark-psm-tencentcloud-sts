@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from federation import MIN_CREDENTIAL_MARGIN_SECONDS, validate_destination, validate_region
+from federation import DEFAULT_SITE, MIN_CREDENTIAL_MARGIN_SECONDS, validate_destination, validate_region, validate_site
 from validate import MAX_CONFIG_BYTES, MAX_PROFILE_NAME_LEN, is_identifier, unique_json_object
 
 
@@ -30,14 +30,17 @@ def validate_settings(settings: Any) -> dict[str, Any]:
         raise ValueError('Configure 1..100 profiles')
     seen_ids: set[str] = set()
     required = {'role_arn', 'allowed_secret_ids', 'destination', 'duration_seconds', 'region'}
+    allowed = required | {'site'}
     for name, p in profiles.items():
         if not is_identifier(name, 1, MAX_PROFILE_NAME_LEN):
             raise ValueError('Invalid profile name')
-        if not isinstance(p, dict) or set(p) != required:
+        if not isinstance(p, dict) or not required <= set(p) or set(p) - allowed:
             raise ValueError('Invalid profile fields')
         if not isinstance(p['role_arn'], str) or not re.fullmatch(r'qcs::cam::uin/[0-9]+:role(?:Name)?/[A-Za-z0-9_-]+', p['role_arn']):
             raise ValueError('Invalid ordinary CAM role ARN')
-        validate_destination(p['destination'])
+        site = p.get('site', DEFAULT_SITE)
+        validate_site(site)
+        validate_destination(p['destination'], site)
         minimum = MIN_CREDENTIAL_MARGIN_SECONDS + 1
         if type(p['duration_seconds']) is not int or not minimum <= p['duration_seconds'] <= 300:
             raise ValueError(f'Duration must be {minimum}..300 seconds')

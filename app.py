@@ -52,7 +52,7 @@ CSP = (
     "frame-ancestors 'none'; base-uri 'none'"
 )
 
-StsCallable = Callable[[str, str, str, str, int, str], Mapping[str, str]]
+StsCallable = Callable[..., Mapping[str, str]]
 TokenStoreLike = Any
 
 # Issuance admission. One worker thread is deliberately left free for health
@@ -273,12 +273,15 @@ def create_app(
                 reject(TOKEN_REJECTED)
             started = time.monotonic()
             try:
-                creds = sts(sid, secret_key, profile['role_arn'], name, profile['duration_seconds'], profile['region'])
+                creds = sts(
+                    sid, secret_key, profile['role_arn'], name,
+                    profile['duration_seconds'], profile['region'], profile.get('site', 'intl'),
+                )
             finally:
                 # Timed even when the call raises: a failing STS is exactly when the
                 # operator needs to know whether it was fast, slow or unreachable.
                 g.sts_ms = int((time.monotonic() - started) * 1000)
-            url = login_url(creds, profile['destination'])
+            url = login_url(creds, profile['destination'], site=profile.get('site', 'intl'))
         except (HTTPException, TokenStoreError):
             # A token-backend outage must keep its own 503/Retry-After contract.
             raise

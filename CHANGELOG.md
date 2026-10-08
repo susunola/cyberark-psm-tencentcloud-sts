@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Support both Tencent Cloud console sites as matching sets: profile `site` is `intl` (default) or `china`, and destination, role-callback signature host, STS/CAM/CVM endpoints switch together. Cross-site destinations are refused.
+
 - Close the OpenCodeReview medium findings: drop the unused `validate.MAX_ISSUANCE_SLOTS` name that collided with the admission ceiling, remove dead bound constants, and wire `app`/`runtime`/`pamctl`/`pam.cloud` to `validate` for proxy/session key length, identity/label/secret-key bounds, request body/header size, credential/onboard JSON limits and the CAM inventory default.
 - Redraw the README login sequence and deployment architecture diagrams: phased color bands for the login flow, trust-zone palette and line styles for the architecture graph, bilingual labels kept in sync.
 
