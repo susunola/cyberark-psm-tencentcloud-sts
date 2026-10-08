@@ -26,11 +26,12 @@ On **2026-10-08 (UTC)**, the caller AK/SK supplied by the repository owner was t
 | Check | Result | Scope |
 |---|---|---|
 | International STS `GetCallerIdentity` | Passed; `Type=CAMUser`, `UserId=PrincipalId` | Confirms this caller credential and identity comparison against the real international API |
-| Dedicated test role lookup | Role absent | The previous `PSMAcceptanceProbe` role does not exist; no role was created or modified during this run |
-| `AssumeRole` and console callback | Not tested in this run | Requires an existing authorized test role or a separately authorized temporary role |
+| Temporary test role and cleanup | Passed | With owner authorization, created a console-enabled role without attached permission policies; deleted it after testing and confirmed `GetRole` reports it absent |
+| International STS `AssumeRole` | Passed | `DurationSeconds=300` returned a 300-second session; the role ceiling was 7200 seconds |
+| International console callback | Inconclusive | Correct and tampered signatures both returned HTTP 200 without a redirect; signature acceptance and browser login remain unverified |
 | Windows / IIS / PSM / recording | Not tested by this cloud check | This macOS API result does not expand the Windows support matrix |
 
-This run performed read-only identity/role inspection. It is separate from the earlier partial cloud acceptance recorded in [acceptance evidence](ACCEPTANCE.md). A successful identity check does not establish role authorization, browser console login or end-to-end PSM compatibility.
+The initial identity inspection was read-only; the subsequent authorized test created and deleted only the temporary role. The narrow sub-user trust was rejected with `InvalidParameter.PrincipalQcsError`; account-scoped trust was accepted. The role had no attached permission policies, and its deletion was independently confirmed. It is separate from the earlier partial cloud acceptance recorded in [acceptance evidence](ACCEPTANCE.md). A successful identity check does not establish role authorization, browser console login or end-to-end PSM compatibility.
 
 ## Prerequisites
 

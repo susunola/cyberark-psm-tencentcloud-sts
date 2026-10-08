@@ -52,3 +52,5 @@ Offline tests cover lifecycle retention, uncertain writes, scope/identity checks
 ## Shared tokens and native operations (0.4.0)
 
 Dedicated CI validates actual Redis token races/expiry/cross-node form consumption. Production TLS/failover fencing and target PSM remain unverified. Native CPM task completion, connection/playback response compatibility and maintenance jobs need target acceptance. No native platform/CPM import package is certified.
+
+2026-10-08 retest: international `GetCallerIdentity` and 300-second `AssumeRole` passed. The authorized policy-free temporary role was deleted and its absence verified. Correct/tampered callback signatures both returned HTTP 200 without redirect, so browser/signature acceptance remains pending. See [current cloud compatibility evidence](DEPLOYMENT.md).
