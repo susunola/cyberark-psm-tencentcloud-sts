@@ -177,12 +177,14 @@ class LifecycleTests(unittest.TestCase):
         """
         root = Path(__file__).resolve().parents[1]
         script = str(root / 'scripts/pamctl.py')
-        with tempfile.TemporaryDirectory() as folder:
+        with tempfile.TemporaryDirectory() as folder, tempfile.TemporaryDirectory() as lock_root:
             ticket = Path(folder) / 'rotation.json'
-            lock = Path(str(ticket) + '.target-lock')
+            # Locks are named by target UIN in a shared directory, not beside the ticket.
+            lock = Path(lock_root) / '123.lock'
             lock.write_text('{}')
             environment = {
                 **os.environ,
+                'PSM_TC_PREPARE_LOCK_DIR': lock_root,
                 'PVWA_API_URL': 'https://pvwa.invalid/PasswordVault/API',
                 'PVWA_TOKEN': 'fake-token',
                 'TENCENTCLOUD_SECRET_ID': 'fake-id',

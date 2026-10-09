@@ -174,3 +174,37 @@ class RoleVerifierSiteTests(unittest.TestCase):
         }
         finalize(cloud, vault, ticket, settings, confirmed_cutover=True, role_verifier=verifier)
         self.assertEqual(verifier.call_args.args[-1], 'china')
+
+
+class ChinaCspTests(unittest.TestCase):
+    def test_form_action_allows_both_site_login_hosts(self):
+        from app import CSP
+
+        for host in (
+            'https://www.tencentcloud.com',
+            'https://cloud.tencent.com',
+            'https://console.tencentcloud.com',
+            'https://console.cloud.tencent.com',
+        ):
+            self.assertIn(host, CSP)
+        self.assertNotIn('*', CSP)
+
+
+class PrepareLockTests(unittest.TestCase):
+    def test_lock_is_named_by_uin_not_ticket_path(self):
+        import os
+        import tempfile
+
+        from scripts.pamctl import target_lock
+
+        with tempfile.TemporaryDirectory() as root:
+            os.environ['PSM_TC_PREPARE_LOCK_DIR'] = root
+            try:
+                first = target_lock('123')
+                second = target_lock(123)
+                self.assertEqual(first, second)
+                self.assertEqual(first.name, '123.lock')
+                # Different tickets for the same UIN share one lock file.
+                self.assertEqual(target_lock('123'), first)
+            finally:
+                os.environ.pop('PSM_TC_PREPARE_LOCK_DIR', None)

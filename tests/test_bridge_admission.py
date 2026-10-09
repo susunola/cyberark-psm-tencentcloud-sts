@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 from app import DEFAULT_ISSUANCE_SLOTS, MAX_ISSUANCE_SLOTS, create_app
 from federation import FederationError
-from runtime import THREADS
+from runtime import THREADS, worker_threads
 from security import TokenStore
 
 SETTINGS = {
@@ -149,6 +149,8 @@ class AdmissionCapacityTests(unittest.TestCase):
     def test_the_default_slot_count_leaves_a_thread_for_health_checks(self):
         """The two numbers are tuned together; this keeps them from drifting."""
         # slots + one waiter + /livez
+        self.assertEqual(worker_threads(DEFAULT_ISSUANCE_SLOTS), DEFAULT_ISSUANCE_SLOTS + 2)
+        self.assertEqual(worker_threads(20), 22)
         self.assertGreaterEqual(THREADS, DEFAULT_ISSUANCE_SLOTS + 2)
 
     def test_admission_parameters_are_validated(self):

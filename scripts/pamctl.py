@@ -35,16 +35,21 @@ def cloud() -> Cloud:
     )
 
 
-def target_lock(ticket_path: object) -> Path:
-    """Serialise preparations per target UIN.
+def target_lock(target_uin: object) -> Path:
+    """Serialise preparations per target UIN across tickets and hosts' lock roots.
 
     The spare-slot check in prepare is check-then-act, so two preparations that read
     the inventory before either creates a key leave three keys behind and a cutover
-    that cannot be trusted. The maintenance runner holds a state-directory lock; the
-    interactive CLI had only a documented request to serialise, which is why this
-    exists. Kept next to the ticket so it needs no extra configuration.
+    that cannot be trusted. The lock name is the UIN (not the ticket path) so two
+    operators using different --ticket locations still collide. Override the
+    directory with PSM_TC_PREPARE_LOCK_DIR when the default is not shared.
     """
-    return Path(str(ticket_path) + '.target-lock')
+    from pam.cloud import uin as parse_uin
+
+    resolved = str(parse_uin(target_uin))
+    root = Path(os.environ.get('PSM_TC_PREPARE_LOCK_DIR') or (Path.home() / '.psm-tencent' / 'prepare-locks'))
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return root / f'{resolved}.lock'
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -194,7 +199,7 @@ def main() -> None:
         elif args.command == 'prepare':
             # Reserve a journal path BEFORE cloud mutation; never overwrite a previous attempt.
             path = Path(args.ticket)
-            lock = target_lock(path)
+            lock = target_lock(args.target_uin)
             try:
                 with private_output(lock):
                     pass

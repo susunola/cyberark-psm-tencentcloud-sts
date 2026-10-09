@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix China login blocked by CSP `form-action`: both Tencent site login/console hosts are allowed.
+- Size waitress workers from issuance slots (`slots + 2`) so `/livez` is not starved during queued logins.
+- Serialise `pamctl prepare` per target UIN in a shared lock directory, not per ticket path.
+
 - Add real loopback HTTPS PVWA transport contracts and bilingual licensed-lab partner acceptance instructions with a pending-only evidence template, included in the source distribution.
 
 - Refuse paginated PVWA rotation recovery results even when the response omits or understates the record count. Recovery cannot treat a partial account inventory as complete; regression tests cover all three count variants without following the supplied next-page URL.

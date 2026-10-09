@@ -244,7 +244,7 @@ Submissions queue for up to `PSM_TC_ISSUANCE_WAIT_SECONDS` and then receive `503
 
 The requested STS duration is 300 seconds. Console cookie lifetime and PSM timeouts must be validated separately. Closing a PSM session does not revoke issued credentials. The package does not implement cloud session revocation or forced global logout.
 
-International endpoints and ordinary CAM roles are implemented; mainland console callbacks and service roles are outside the configured scope. Keep cloud-side login policies, network restrictions, and MFA conditions effective. Requests that fail policy requirements must fail rather than bypassing those requirements.
+International and China console sites are both implemented as matching sets (`site: "intl"` default, or `"china"`); ordinary CAM roles are supported. Service roles remain outside the configured scope. Live login acceptance is still required per site. Keep cloud-side login policies, network restrictions, and MFA conditions effective. Requests that fail policy requirements must fail rather than bypassing those requirements.
 
 ## Validation
 

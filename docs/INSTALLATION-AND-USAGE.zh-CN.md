@@ -53,7 +53,7 @@ PVWA 控制连接授权，原生 PSM 控制浏览器隔离、录屏和退出清�
 
 ### 从 0.5.0 迁移到国际站
 
-旧实现签名使用中国站主机。0.5.1 改为 `www.tencentcloud.com/login/roleAccessCallback`，仅允许 `https://console.tencentcloud.com/` 目的地址，显式调用 `sts.intl.tencentcloudapi.com`、`cam.intl.tencentcloudapi.com`、`cvm.intl.tencentcloudapi.com`。升级时一起更新配置、运行代码/CSP、Vault 地址元数据及网络白名单；排空连接后按升级流程操作。旧中国站目的地址会被启动校验拒绝。使用国际站账号密钥，并核对区域可用性；选择地理区域本身不会切换账号站点。依据为[国际站回调规范](https://www.tencentcloud.com/document/product/614/36997)和[STS API](https://www.tencentcloud.com/document/product/1150/49456)。回调文档标题标注 old scheme，通用控制台登录仍须现场验收。
+profile 通过 `site` 选择站点：省略或 `"intl"` 使用 `www.tencentcloud.com/login/roleAccessCallback` 与 `console.tencentcloud.com`；`"site": "china"` 使用 `cloud.tencent.com/login/roleAccessCallback` 与 `console.cloud.tencent.com`。目的地址必须与站点控制台主机一致，否则启动校验失败。升级时同步更新配置、Vault 地址元数据及网络白名单；排空连接后按升级流程操作。使用国际站账号密钥，并核对区域可用性；选择地理区域本身不会切换账号站点。依据为[国际站回调规范](https://www.tencentcloud.com/document/product/614/36997)和[STS API](https://www.tencentcloud.com/document/product/1150/49456)。回调文档标题标注 old scheme，通用控制台登录仍须现场验收。
 
 <a id="cloud"></a>
 ## 2. 腾讯云和角色配置

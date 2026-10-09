@@ -57,7 +57,8 @@ STARTUP_MESSAGE = 'Bridge startup configuration invalid. Check service environme
 # The full policy is pinned as a literal so a weakened CSP fails here.
 CSP_VALUE = (
     "default-src 'none'; form-action 'self' "
-    'https://www.tencentcloud.com https://console.tencentcloud.com; '
+    'https://www.tencentcloud.com https://cloud.tencent.com '
+    'https://console.tencentcloud.com https://console.cloud.tencent.com; '
     "frame-ancestors 'none'; base-uri 'none'"
 )
 SECURITY_HEADERS = {

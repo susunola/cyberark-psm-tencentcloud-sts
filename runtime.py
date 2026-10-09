@@ -19,15 +19,20 @@ from validate import MAX_REQUEST_HEADER_BYTES
 # what the server is willing to buffer before handing the request over.
 TRANSPORT_BODY_CEILING = 32768
 MAX_REQUEST_HEADER_SIZE = MAX_REQUEST_HEADER_BYTES
-# Slots + one queued submitter + /livez. A waiter occupies a worker for up to
-# issuance_wait, so health must not be the thread that gets starved.
+# Default only. Production callers should pass worker_threads(issuance_slots)
+# so /livez is not starved while submitters wait inside a worker.
 THREADS = 6
 CONNECTION_LIMIT = 100
 CHANNEL_TIMEOUT = 30
 DEFAULT_PORT = 8765
 
 
-def make_server(app: Any, *, port: int = DEFAULT_PORT) -> Any:
-    return create_server(app, host='127.0.0.1', port=port, threads=THREADS,
+def worker_threads(issuance_slots: int) -> int:
+    """Workers needed for slots + one in-process waiter + /livez."""
+    return issuance_slots + 2
+
+
+def make_server(app: Any, *, port: int = DEFAULT_PORT, threads: int = THREADS) -> Any:
+    return create_server(app, host='127.0.0.1', port=port, threads=threads,
                          connection_limit=CONNECTION_LIMIT, max_request_body_size=TRANSPORT_BODY_CEILING,
                          max_request_header_size=MAX_REQUEST_HEADER_SIZE, channel_timeout=CHANNEL_TIMEOUT)

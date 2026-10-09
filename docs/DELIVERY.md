@@ -26,7 +26,7 @@ The repository implements a international Tencent console federation bridge and 
 2. **Target-environment acceptance.** Not performed: live Tencent login/rotation and PVWA/PSM/CPM operations, approvals, recording, Windows service execution, production TLS/ACL/failover. A tested source package is not evidence for these.
 3. **Supported-version certification and official contribution.** Not obtained/submitted. An all-version compatibility claim cannot be made without a defined supported matrix and real evidence. Marketplace contributor agreements and submission remain owner/customer actions.
 
-Vault permissions, MFA, native recording, guest password protocols, Safe policy and PAM disaster recovery are provider capabilities to configure and validate, not separate copies of PAM to implement in this plugin. International-site Tencent role federation is the current scope; mainland callbacks and legacy-only PVWA adapters are outside scope. Live international login still requires target-environment acceptance.
+Vault permissions, MFA, native recording, guest password protocols, Safe policy and PAM disaster recovery are provider capabilities to configure and validate, not separate copies of PAM to implement in this plugin. Tencent role federation covers the international and China sites as matching sets (`site` selects console host, callback signature host and STS/CAM/CVM endpoints). Legacy-only PVWA adapters remain outside scope. Live login still requires target-environment acceptance for each site.
 
 ## Completed administrative commands
 

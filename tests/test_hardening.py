@@ -138,7 +138,10 @@ class HardeningTests(unittest.TestCase):
         r = self.client.get('/', headers=self.headers, base_url='https://bridge.local')
         for flag in ('Secure', 'HttpOnly', 'SameSite=Strict'):
             self.assertIn(flag, r.headers['Set-Cookie'])
-        self.assertIn('form-action \'self\' https://www.tencentcloud.com', r.headers['Content-Security-Policy'])
+        csp = r.headers['Content-Security-Policy']
+        self.assertIn("form-action 'self' https://www.tencentcloud.com", csp)
+        self.assertIn('https://cloud.tencent.com', csp)
+        self.assertIn('https://console.cloud.tencent.com', csp)
         self.assertEqual(r.headers['Referrer-Policy'], 'no-referrer')
         self.assertRegex(r.headers['X-Request-ID'], r'^[0-9a-f]{32}$')
 

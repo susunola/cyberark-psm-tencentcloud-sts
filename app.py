@@ -46,9 +46,12 @@ FORM = f"""<!doctype html><html lang="en"><meta charset="utf-8"><title>Tencent C
 <label>Audit label <input id="audit_label" name="audit_label" required maxlength="{MAX_AUDIT_LABEL_LEN}"></label><br>
 <button id="connect_button" type="submit">Connect</button></form></body></html>"""
 
+# form-action must cover every site we may 303 to after /connect, including the
+# China callback host. Chromium enforces form-action on that redirect chain.
 CSP = (
     "default-src 'none'; form-action 'self' "
-    "https://www.tencentcloud.com https://console.tencentcloud.com; "
+    "https://www.tencentcloud.com https://cloud.tencent.com "
+    "https://console.tencentcloud.com https://console.cloud.tencent.com; "
     "frame-ancestors 'none'; base-uri 'none'"
 )
 
@@ -350,7 +353,7 @@ def _environment_float(environment: Mapping[str, str], name: str, default: float
 
 
 def main() -> None:
-    from runtime import make_server
+    from runtime import make_server, worker_threads
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     try:
         environment = shared_environment(os.environ)
@@ -371,7 +374,8 @@ def main() -> None:
         raise SystemExit(f'Bridge startup requires environment variable {name}.') from None
     except Exception:  # noqa: BLE001 - never forward error text
         raise SystemExit('Bridge startup configuration invalid. Check service environment and settings.') from None
-    make_server(app).run()
+    slots = _environment_int(os.environ, 'PSM_TC_ISSUANCE_SLOTS', DEFAULT_ISSUANCE_SLOTS)
+    make_server(app, threads=worker_threads(slots)).run()
 
 
 if __name__ == '__main__':
