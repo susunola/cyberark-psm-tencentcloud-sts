@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import socket
 import sys
 import time
 import uuid
@@ -40,13 +41,15 @@ PREPARE_LOCK_MAX_AGE_SECONDS = 3 * 60 * 60
 
 
 def target_lock(target_uin: object) -> Path:
-    """Serialise preparations per target UIN across tickets and hosts' lock roots.
+    """Serialise preparations per target UIN across tickets on a shared lock root.
 
     The spare-slot check in prepare is check-then-act, so two preparations that read
     the inventory before either creates a key leave three keys behind and a cutover
     that cannot be trusted. The lock name is the UIN (not the ticket path) so two
-    operators using different --ticket locations still collide. Override the
-    directory with PSM_TC_PREPARE_LOCK_DIR when the default is not shared.
+    operators using different --ticket locations still collide. Point
+    PSM_TC_PREPARE_LOCK_DIR at a shared filesystem when several machines or
+    accounts run prepare; default is per-user home. PID checks only apply when
+    the lock was taken on this host.
     """
     from pam.cloud import uin as parse_uin
 
@@ -57,10 +60,11 @@ def target_lock(target_uin: object) -> Path:
 
 
 def _pid_alive(pid: object) -> bool:
-    """True when *pid* is a live process.
+    """True when *pid* is a live process **on this machine**.
 
     Windows: os.kill(pid, 0) is TerminateProcess — it ends the target instead of
     probing it (CPython posixmodule.c). Use OpenProcess/GetExitCodeProcess.
+    Permission errors mean the process exists but is not ours to signal.
     """
     if type(pid) is not int or pid <= 0:
         return False
@@ -68,6 +72,8 @@ def _pid_alive(pid: object) -> bool:
         return _windows_pid_alive(pid)
     try:
         os.kill(pid, 0)
+    except PermissionError:
+        return True
     except (OSError, ValueError):
         return False
     return True
@@ -85,7 +91,8 @@ def _windows_pid_alive(pid: int) -> bool:
     kernel32: Any = windll.kernel32
     handle = kernel32.OpenProcess(process_query_limited_information, 0, pid)
     if not handle:
-        return False
+        # ERROR_ACCESS_DENIED (5): the process exists but belongs to another user.
+        return bool(ctypes.get_last_error() == 5)
     try:
         code = ctypes.c_ulong()
         if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
@@ -96,22 +103,30 @@ def _windows_pid_alive(pid: int) -> bool:
 
 
 def prepare_lock_stale(path: Path) -> str:
-    """Return a reason the lock looks abandoned, or '' when it may still be live."""
+    """Return a reason the lock looks abandoned, or '' when it may still be live.
+
+    PID liveness is only meaningful on the host that took the lock. A shared
+    lock directory across machines must expire by age alone.
+    """
     try:
         meta = json.loads(path.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         return 'lock metadata unreadable'
     if not isinstance(meta, dict):
         return 'lock metadata unreadable'
-    pid = meta.get('pid')
-    if not _pid_alive(pid):
-        return f'holder process {pid} is not running'
     acquired_at = meta.get('acquired_at_epoch')
     if type(acquired_at) is not int or acquired_at <= 0:
         return 'lock metadata has no acquisition time'
     age = time.time() - acquired_at
     if age > PREPARE_LOCK_MAX_AGE_SECONDS:
         return f'lock is older than {PREPARE_LOCK_MAX_AGE_SECONDS} seconds'
+    holder_host = meta.get('host')
+    if holder_host and holder_host != socket.gethostname():
+        # Foreign host: this process table cannot prove the holder is gone.
+        return ''
+    pid = meta.get('pid')
+    if not _pid_alive(pid):
+        return f'holder process {pid} is not running'
     return ''
 
 
@@ -121,7 +136,8 @@ def acquire_prepare_lock(path: Path) -> None:
         save_json(sink, {
             'pid': os.getpid(),
             'acquired_at_epoch': int(time.time()),
-            'note': 'pamctl prepare; unlock with pamctl unlock-prepare --force if abandoned',
+            'host': socket.gethostname(),
+            'note': 'pamctl prepare; stale locks: unlock-prepare --apply; live holders: --force --apply',
         })
 
 
@@ -297,7 +313,7 @@ def main() -> None:
             except FileExistsError:
                 reason = prepare_lock_stale(lock)
                 hint = (
-                    f' Lock looks abandoned ({reason}); run unlock-prepare --target-uin {args.target_uin} --force --apply.'
+                    f' Lock looks abandoned ({reason}); run unlock-prepare --target-uin {args.target_uin} --apply.'
                     if reason else ''
                 )
                 # parser.exit raises SystemExit, so this survives the sanitizing handler

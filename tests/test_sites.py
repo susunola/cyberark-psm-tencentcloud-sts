@@ -307,3 +307,41 @@ class WindowsPidProbeTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             # Either a specific operator message or the sanitized banner — never a stack trace.
             self.assertNotIn('Traceback', result.stderr)
+
+
+class PrepareLockSemanticsTests(unittest.TestCase):
+    def test_permission_error_counts_as_live_process(self):
+        import os
+        from unittest.mock import patch
+
+        from scripts import pamctl
+
+        with patch.object(pamctl.os, 'kill', side_effect=PermissionError):
+            self.assertTrue(pamctl._pid_alive(os.getpid()))
+
+    def test_foreign_host_lock_is_not_killed_off_by_local_pid_probe(self):
+        import json
+        import os
+        import tempfile
+        import time
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from scripts.pamctl import prepare_lock_stale
+
+        with tempfile.TemporaryDirectory() as root:
+            lock = Path(root) / '1.lock'
+            lock.write_text(json.dumps({
+                'pid': os.getpid(),
+                'host': 'other-host.invalid',
+                'acquired_at_epoch': int(time.time()),
+            }), encoding='utf-8')
+            with patch('scripts.pamctl._pid_alive', side_effect=AssertionError('must not probe')):
+                self.assertEqual(prepare_lock_stale(lock), '')
+            # Only age expires a foreign-host lock.
+            lock.write_text(json.dumps({
+                'pid': 1,
+                'host': 'other-host.invalid',
+                'acquired_at_epoch': int(time.time()) - 4 * 60 * 60,
+            }), encoding='utf-8')
+            self.assertIn('older than', prepare_lock_stale(lock))
