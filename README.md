@@ -129,11 +129,11 @@ flowchart TB
     S -.->|shared form state| R
 ```
 
-This package includes a runnable bridge and unit tests. It is not a platform ZIP that can be imported directly into PVWA. Windows deployment, PSM recording, and live Tencent Cloud login have not been validated against a target environment.
+This package includes a runnable bridge and unit tests. It is not a platform ZIP that can be imported directly into PVWA. Windows CVM installs and international AssumeRole have field evidence; browser console login, IIS header overwrite and PSM session bring-up remain acceptance items (see docs/ACCEPTANCE.md).
 
 ## Delivery status and operations
 
-Version 0.5.2 includes strict configuration validation, dedicated caller-to-role binding, Windows install/uninstall scripts, an IIS proxy template, safe audit correlation, CI, a reproducible source archive with a SHA256 manifest and a CycloneDX dependency inventory. Original code uses the MIT license; maintainer: **susunola**.
+Version 0.5.3 includes dual-site federation (`intl`/`china`), shared validators and quality gates; 0.5.2 added strict configuration validation, dedicated caller-to-role binding, Windows install/uninstall scripts, an IIS proxy template, safe audit correlation, CI, a reproducible source archive with a SHA256 manifest and a CycloneDX dependency inventory. Original code uses the MIT license; maintainer: **susunola**.
 
 - [Complete delivery ledger and remaining external dependencies](docs/DELIVERY.md)
 - [Native CPM/PSM operations, recovery, maintenance and shared tokens](docs/OPERATIONS.md)

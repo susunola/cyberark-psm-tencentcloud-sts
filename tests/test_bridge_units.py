@@ -289,7 +289,7 @@ class StartupTests(unittest.TestCase):
         with (
             patch('app.shared_environment', return_value=environment),
             patch('app.load_settings', return_value=SETTINGS),
-            patch('app.configured_token_store', return_value=MagicMock()),
+            patch('app.configured_token_store', return_value=MagicMock()) as store_factory,
             patch('app.create_app', side_effect=capture),
             patch('runtime.make_server', return_value=MagicMock()),
         ):
@@ -297,6 +297,9 @@ class StartupTests(unittest.TestCase):
         self.assertEqual(captured['issuance_slots'], 8)
         self.assertEqual(captured['issuance_wait'], 12.5)
         self.assertEqual(captured['identity_capacity'], 32)
+        # The store itself must see the bound; create_app ignores identity_capacity
+        # once a token_store is injected.
+        self.assertEqual(store_factory.call_args.kwargs.get('identity_capacity'), 32)
 
     def test_unset_or_invalid_admission_overrides_behave_predictably(self):
         """Unset means 'use the default'; a malformed value must fail startup, sanitized."""
@@ -314,7 +317,7 @@ class StartupTests(unittest.TestCase):
         with (
             patch('app.shared_environment', return_value=dict(base)),
             patch('app.load_settings', return_value=SETTINGS),
-            patch('app.configured_token_store', return_value=MagicMock()),
+            patch('app.configured_token_store', return_value=MagicMock()) as store_factory,
             patch('app.create_app', side_effect=capture),
             patch('runtime.make_server', return_value=MagicMock()),
         ):
@@ -322,6 +325,7 @@ class StartupTests(unittest.TestCase):
         self.assertEqual(captured['issuance_slots'], DEFAULT_ISSUANCE_SLOTS)
         self.assertEqual(captured['issuance_wait'], DEFAULT_ISSUANCE_WAIT_SECONDS)
         self.assertIsNone(captured['identity_capacity'])
+        self.assertIsNone(store_factory.call_args.kwargs.get('identity_capacity'))
 
         for name, value in (
             ('PSM_TC_ISSUANCE_SLOTS', 'many'),
@@ -389,7 +393,9 @@ class StartupTests(unittest.TestCase):
             main()
         environment.assert_called_once()
         loader.assert_called_once_with(STARTUP_ENVIRONMENT['PSM_TC_CONFIG'])
-        token_store.assert_called_once_with(STARTUP_ENVIRONMENT)
+        token_store.assert_called_once()
+        self.assertEqual(token_store.call_args.args[0], STARTUP_ENVIRONMENT)
+        self.assertIn('identity_capacity', token_store.call_args.kwargs)
         factory.assert_called_once()
         self.assertIsInstance(factory.call_args.args[0], Flask)
         server.run.assert_called_once_with()

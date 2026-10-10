@@ -362,7 +362,10 @@ def main() -> None:
             settings,
             proxy_key=environment['PSM_TC_PROXY_KEY'],
             session_key=environment['PSM_TC_SESSION_KEY'],
-            token_store=configured_token_store(environment),
+            token_store=configured_token_store(
+                environment,
+                identity_capacity=_environment_optional_int(environment, 'PSM_TC_IDENTITY_CAPACITY'),
+            ),
             issuance_slots=_environment_int(environment, 'PSM_TC_ISSUANCE_SLOTS', DEFAULT_ISSUANCE_SLOTS),
             issuance_wait=_environment_float(environment, 'PSM_TC_ISSUANCE_WAIT_SECONDS', DEFAULT_ISSUANCE_WAIT_SECONDS),
             identity_capacity=_environment_optional_int(environment, 'PSM_TC_IDENTITY_CAPACITY'),

@@ -129,11 +129,11 @@ flowchart TB
     S -.->|多节点单次表单状态| R
 ```
 
-本包包含可运行的桥接服务和单元测试。它不是直接导入 PVWA 的平台 ZIP；缺少现场 PSM 版本、Web 框架和腾讯云测试账号，尚未完成 Windows、PSM 录屏或腾讯云真实登录验收。
+本包包含可运行的桥接服务和单元测试。它不是直接导入 PVWA 的平台 ZIP。Windows CVM 安装与国际站 AssumeRole 已有现场记录；浏览器控制台登录、IIS 头覆盖与 PSM 会话拉起仍待验收（见 docs/ACCEPTANCE.zh-CN.md）。
 
 ## 交付状态与运维
 
-0.5.2 已补充严格配置校验、调用密钥与角色独占绑定、Windows 安装/卸载脚本、IIS 代理模板、安全审计关联、CI、可重现源码包、SHA256 清单与 CycloneDX 依赖清单。原创代码采用 MIT 许可，维护者为 **susunola**。
+0.5.3 增加双站联邦（`intl`/`china`）、共享校验与质量门禁；0.5.2 已补充严格配置校验、调用密钥与角色独占绑定、Windows 安装/卸载脚本、IIS 代理模板、安全审计关联、CI、可重现源码包、SHA256 清单与 CycloneDX 依赖清单。原创代码采用 MIT 许可，维护者为 **susunola**。
 
 - [完整交付清单与剩余外部依赖](docs/DELIVERY.zh-CN.md)
 - [原生 CPM/PSM 操作、恢复、定时维护和共享令牌](docs/OPERATIONS.zh-CN.md)
