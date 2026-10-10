@@ -67,8 +67,8 @@ def prepare(cloud: Any, vault: Any, old_account_id: str, target: object, profile
     """Stage a replacement key pair for one target.
 
     The spare-slot check below and the key creation are check-then-act: callers MUST
-    serialize concurrent prepare() calls for the same target (pamctl holds a Vault
-    operation lock; maintenance holds its journal). This layer deliberately keeps no
+    serialize concurrent prepare() calls for the same target (pamctl holds a
+    per-UIN prepare lock; maintenance holds its journal). This layer deliberately keeps no
     lock of its own so it stays usable without those drivers.
     """
     if not re.fullmatch(r'[a-f0-9]{32}', operation):
@@ -94,14 +94,16 @@ def prepare(cloud: Any, vault: Any, old_account_id: str, target: object, profile
         validate_identifier(new_sid)
         if new_sid == old_sid or not isinstance(new_key, str) or not 1 <= len(new_key) <= 512:
             raise LifecycleError('Invalid replacement pair; reconcile cloud inventory')
-        cloud.verify(new_sid, new_key, target)
         payload = {'name': 'tc-rotation-' + operation, 'address': old['address'],
             'userName': old['userName'], 'platformId': old['platformId'], 'safeName': old['safeName'],
             'secretType': 'password', 'secret': new_key,
             'platformAccountProperties': {**props, 'TencentSecretId': new_sid},
             'secretManagement': {'automaticManagementEnabled': False,
                                  'manualManagementReason': 'External staged rotation; native CPM not configured'}}
+        # Persist before verify: SecretKey cannot be read back after CreateAccessKey,
+        # so a failed verify must still leave the secret recoverable from Vault.
         new_account = vault.create(payload)
+        cloud.verify(new_sid, new_key, target)
     except Exception:  # noqa: BLE001 - never forward error text
         # Preserve old key and the new cloud key. Vault save may have succeeded despite timeout.
         raise LifecycleError('Preparation incomplete; old key retained. Reconcile cloud/Vault before retrying.') from None

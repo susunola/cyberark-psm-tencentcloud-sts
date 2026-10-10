@@ -13,7 +13,7 @@ from pam.audit import summarize
 from pam.cloud import DEFAULT_MAX_CAM_USERS, Cloud
 from pam.delivery import append_record, export_records, onboard_batch, preflight
 from pam.files import private_output, read_json, save_json
-from pam.lifecycle import Ticket, finalize, prepare, recover_ticket, restore_old
+from pam.lifecycle import LifecycleError, Ticket, finalize, prepare, recover_ticket, restore_old
 from pam.onboarding import validate_account
 from pam.planning import cvm_plan
 from pam.vault import Vault
@@ -57,13 +57,42 @@ def target_lock(target_uin: object) -> Path:
 
 
 def _pid_alive(pid: object) -> bool:
+    """True when *pid* is a live process.
+
+    Windows: os.kill(pid, 0) is TerminateProcess — it ends the target instead of
+    probing it (CPython posixmodule.c). Use OpenProcess/GetExitCodeProcess.
+    """
     if type(pid) is not int or pid <= 0:
         return False
+    if os.name == 'nt':
+        return _windows_pid_alive(pid)
     try:
         os.kill(pid, 0)
     except (OSError, ValueError):
         return False
     return True
+
+
+def _windows_pid_alive(pid: int) -> bool:
+    import ctypes
+    from typing import Any
+
+    process_query_limited_information = 0x1000
+    still_active = 259
+    windll = getattr(ctypes, 'windll', None)
+    if windll is None:
+        return False
+    kernel32: Any = windll.kernel32
+    handle = kernel32.OpenProcess(process_query_limited_information, 0, pid)
+    if not handle:
+        return False
+    try:
+        code = ctypes.c_ulong()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return False
+        return code.value == still_active
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def prepare_lock_stale(path: Path) -> str:
@@ -301,6 +330,9 @@ def main() -> None:
                 result = finalize(cloud(), vault(), ticket, load_settings(args.settings), confirmed_cutover=args.confirm_psm_cutover)
             else:
                 result = restore_old(cloud(), vault(), ticket, load_settings(args.settings))
+    except (RuntimeError, LifecycleError) as error:
+        # These messages are written for operators and already avoid secrets.
+        parser.exit(2, f'{error}\n')
     except Exception:  # noqa: BLE001 - never forward error text
         parser.exit(2, 'Operation failed. No secrets or raw API errors are emitted. Reconcile uncertain write outcomes before retry.\n')
     print(json.dumps(result, ensure_ascii=False, indent=2))

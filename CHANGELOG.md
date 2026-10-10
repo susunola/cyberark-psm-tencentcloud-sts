@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix Windows prepare-lock liveness checks: `os.kill(pid, 0)` terminates the target on Windows; use OpenProcess/GetExitCodeProcess instead.
+- Persist the new SecretKey to Vault before role verification so a failed verify cannot lose the only copy of the key.
+- Surface operator-facing `LifecycleError`/`RuntimeError` text from pamctl instead of replacing it with a generic banner.
+
 - Fix China login blocked by CSP `form-action`: both Tencent site login/console hosts are allowed.
 - Size waitress workers from issuance slots (`slots + 2`) so `/livez` is not starved during queued logins.
 - Serialise `pamctl prepare` per target UIN in a shared lock directory, not per ticket path.

@@ -106,10 +106,12 @@ class LifecycleTests(unittest.TestCase):
         self.assertNotIn('FAKE-SECRET',str(error.exception))
         self.cloud.set_key_status.assert_not_called()
 
-    def test_failed_verification_never_stores_or_retires(self):
+    def test_failed_verification_keeps_old_key_and_secret_stays_in_vault(self):
+        # SecretKey cannot be read back after CreateAccessKey, so the Vault write
+        # must happen before verify; a failed verify leaves the secret recoverable.
         self.cloud.verify.side_effect=RuntimeError('verification failed')
         with self.assertRaises(LifecycleError):prepare(self.cloud,self.vault,'old-account','123','readonly',self.operation)
-        self.vault.create.assert_not_called();self.cloud.set_key_status.assert_not_called()
+        self.vault.create.assert_called_once();self.cloud.set_key_status.assert_not_called()
 
     def test_finalize_requires_operator_confirmation(self):
         ticket=self.prepared()

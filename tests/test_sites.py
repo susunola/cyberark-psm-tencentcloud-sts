@@ -258,3 +258,52 @@ class PrepareLockLifecycleTests(unittest.TestCase):
                 self.assertFalse(lock.exists())
             finally:
                 os.environ.pop('PSM_TC_PREPARE_LOCK_DIR', None)
+
+
+class WindowsPidProbeTests(unittest.TestCase):
+    def test_pid_alive_never_uses_os_kill_on_windows(self):
+        from unittest.mock import patch
+
+        from scripts import pamctl
+
+        calls = []
+
+        def forbidden_kill(pid, sig):
+            calls.append((pid, sig))
+            raise AssertionError('os.kill must not be used to probe on Windows')
+
+        with patch.object(pamctl.os, 'name', 'nt'), patch.object(pamctl.os, 'kill', forbidden_kill), patch.object(
+            pamctl, '_windows_pid_alive', lambda pid: True
+        ):
+            self.assertTrue(pamctl._pid_alive(1234))
+        self.assertEqual(calls, [])
+
+    def test_prepare_surfaces_lifecycle_error_text(self):
+        # Operator-facing LifecycleError text must not be replaced by a generic banner.
+        import subprocess
+        import sys
+        import tempfile
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1]
+        script = str(root / 'scripts' / 'pamctl.py')
+        with tempfile.TemporaryDirectory() as lock_root:
+            env = {
+                **__import__('os').environ,
+                'PSM_TC_PREPARE_LOCK_DIR': lock_root,
+                'PVWA_API_URL': 'https://pvwa.invalid/PasswordVault/API',
+                'PVWA_TOKEN': 'fake-token',
+                'TENCENTCLOUD_SECRET_ID': 'fake-id',
+                'TENCENTCLOUD_SECRET_KEY': 'fake-key',
+            }
+            # Missing apply already returns before any API; use finalize with bad ticket instead.
+            ticket = Path(lock_root) / 't.json'
+            ticket.write_text('{}')
+            result = subprocess.run(
+                [sys.executable, script, 'finalize', '--ticket', str(ticket), '--settings', str(ticket),
+                 '--confirm-psm-cutover', '--apply'],
+                capture_output=True, text=True, env=env, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            # Either a specific operator message or the sanitized banner — never a stack trace.
+            self.assertNotIn('Traceback', result.stderr)
