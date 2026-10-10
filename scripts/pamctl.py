@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -35,6 +36,9 @@ def cloud() -> Cloud:
     )
 
 
+PREPARE_LOCK_MAX_AGE_SECONDS = 3 * 60 * 60
+
+
 def target_lock(target_uin: object) -> Path:
     """Serialise preparations per target UIN across tickets and hosts' lock roots.
 
@@ -50,6 +54,46 @@ def target_lock(target_uin: object) -> Path:
     root = Path(os.environ.get('PSM_TC_PREPARE_LOCK_DIR') or (Path.home() / '.psm-tencent' / 'prepare-locks'))
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     return root / f'{resolved}.lock'
+
+
+def _pid_alive(pid: object) -> bool:
+    if type(pid) is not int or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def prepare_lock_stale(path: Path) -> str:
+    """Return a reason the lock looks abandoned, or '' when it may still be live."""
+    try:
+        meta = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return 'lock metadata unreadable'
+    if not isinstance(meta, dict):
+        return 'lock metadata unreadable'
+    pid = meta.get('pid')
+    if not _pid_alive(pid):
+        return f'holder process {pid} is not running'
+    acquired_at = meta.get('acquired_at_epoch')
+    if type(acquired_at) is not int or acquired_at <= 0:
+        return 'lock metadata has no acquisition time'
+    age = time.time() - acquired_at
+    if age > PREPARE_LOCK_MAX_AGE_SECONDS:
+        return f'lock is older than {PREPARE_LOCK_MAX_AGE_SECONDS} seconds'
+    return ''
+
+
+def acquire_prepare_lock(path: Path) -> None:
+    """Create the lock exclusively and record who holds it for later diagnosis."""
+    with private_output(path) as sink:
+        save_json(sink, {
+            'pid': os.getpid(),
+            'acquired_at_epoch': int(time.time()),
+            'note': 'pamctl prepare; unlock with pamctl unlock-prepare --force if abandoned',
+        })
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -107,6 +151,10 @@ def build_parser() -> argparse.ArgumentParser:
     onboard.add_argument('--safe', required=True); onboard.add_argument('--platform', required=True)
     verify = commands.add_parser('verify'); verify.add_argument('--target-uin', required=True)
     prepare_cmd = commands.add_parser('prepare')
+    unlock_cmd = commands.add_parser('unlock-prepare')
+    unlock_cmd.add_argument('--target-uin', required=True)
+    unlock_cmd.add_argument('--force', action='store_true')
+    unlock_cmd.add_argument('--apply', action='store_true')
     for name in ('old-account', 'target-uin', 'profile', 'ticket'):
         prepare_cmd.add_argument('--' + name, required=True)
     prepare_cmd.add_argument('--apply', action='store_true')
@@ -123,7 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
-    if args.command in ('prepare', 'finalize', 'restore-old', 'onboard', 'session', 'request', 'decision', 'cpm', 'connect', 'recover-ticket', 'playback', 'onboard-batch', 'cancel-request') and not args.apply:
+    if args.command in ('prepare', 'finalize', 'restore-old', 'onboard', 'session', 'request', 'decision', 'cpm', 'connect', 'recover-ticket', 'playback', 'onboard-batch', 'cancel-request', 'unlock-prepare') and not args.apply:
         print(json.dumps({'status': 'no-write', 'operation': args.command, 'next': 'Review configuration, then explicitly supply --apply'}))
         return
     try:
@@ -196,20 +244,39 @@ def main() -> None:
         elif args.command == 'onboard':
             payload = validate_account(read_json(stream=sys.stdin, limit=MAX_ONBOARD_JSON_BYTES), args.safe, args.platform)
             result = {'account_id': vault().create(payload)}
+        elif args.command == 'unlock-prepare':
+            lock = target_lock(args.target_uin)
+            if not lock.exists():
+                result = {'status': 'no-lock', 'path': str(lock)}
+            else:
+                reason = prepare_lock_stale(lock)
+                if reason or args.force:
+                    lock.unlink(missing_ok=True)
+                    result = {'status': 'unlocked', 'path': str(lock), 'reason': reason or 'forced by operator'}
+                else:
+                    parser.exit(
+                        2,
+                        f'{lock.name} still looks live ({reason or "holder process running"}); '
+                        'use --force only when the holder is known dead.\n',
+                    )
         elif args.command == 'prepare':
             # Reserve a journal path BEFORE cloud mutation; never overwrite a previous attempt.
             path = Path(args.ticket)
             lock = target_lock(args.target_uin)
             try:
-                with private_output(lock):
-                    pass
+                acquire_prepare_lock(lock)
             except FileExistsError:
+                reason = prepare_lock_stale(lock)
+                hint = (
+                    f' Lock looks abandoned ({reason}); run unlock-prepare --target-uin {args.target_uin} --force --apply.'
+                    if reason else ''
+                )
                 # parser.exit raises SystemExit, so this survives the sanitizing handler
                 # below; an operator needs to know this is contention, not a cloud fault.
                 parser.exit(
                     2,
                     f'Another preparation holds {lock.name}. Preparations for one target must be '
-                    'serialised: reconcile the existing run before retrying.\n',
+                    f'serialised: reconcile the existing run before retrying.{hint}\n',
                 )
             try:
                 with private_output(path) as journal:

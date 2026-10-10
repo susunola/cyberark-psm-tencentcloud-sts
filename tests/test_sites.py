@@ -208,3 +208,53 @@ class PrepareLockTests(unittest.TestCase):
                 self.assertEqual(target_lock('123'), first)
             finally:
                 os.environ.pop('PSM_TC_PREPARE_LOCK_DIR', None)
+
+
+class PrepareLockLifecycleTests(unittest.TestCase):
+    def test_stale_and_unlock_prepare(self):
+        import json
+        import os
+        import subprocess
+        import sys
+        import tempfile
+        import time
+        from pathlib import Path
+
+        from scripts.pamctl import acquire_prepare_lock, prepare_lock_stale, target_lock
+
+        root = Path(__file__).resolve().parents[1]
+        script = str(root / 'scripts' / 'pamctl.py')
+        with tempfile.TemporaryDirectory() as lock_root:
+            os.environ['PSM_TC_PREPARE_LOCK_DIR'] = lock_root
+            try:
+                lock = target_lock('999')
+                acquire_prepare_lock(lock)
+                meta = json.loads(lock.read_text(encoding='utf-8'))
+                self.assertEqual(meta['pid'], os.getpid())
+                self.assertIn('acquired_at_epoch', meta)
+                # Live holder (this process) is not stale.
+                self.assertEqual(prepare_lock_stale(lock), '')
+
+                # Dead pid is abandoned.
+                lock.write_text(json.dumps({'pid': 2**22, 'acquired_at_epoch': int(time.time())}), encoding='utf-8')
+                self.assertTrue(prepare_lock_stale(lock))
+
+                env = {**os.environ, 'PSM_TC_PREPARE_LOCK_DIR': lock_root}
+                # unlock-prepare requires --apply like other mutations.
+                denied = subprocess.run(
+                    [sys.executable, script, 'unlock-prepare', '--target-uin', '999'],
+                    capture_output=True, text=True, env=env, check=False,
+                )
+                self.assertEqual(denied.returncode, 0)
+                self.assertIn('no-write', denied.stdout)
+                self.assertTrue(lock.exists())
+
+                forced = subprocess.run(
+                    [sys.executable, script, 'unlock-prepare', '--target-uin', '999', '--force', '--apply'],
+                    capture_output=True, text=True, env=env, check=False,
+                )
+                self.assertEqual(forced.returncode, 0, forced.stderr)
+                self.assertIn('unlocked', forced.stdout)
+                self.assertFalse(lock.exists())
+            finally:
+                os.environ.pop('PSM_TC_PREPARE_LOCK_DIR', None)
